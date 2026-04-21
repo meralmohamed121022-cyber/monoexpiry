@@ -230,6 +230,37 @@ header {
     align-items: center;
     margin-bottom: 25px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+}/* تنسيق قائمة المستخدمين */
+.user-selector-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+    background: #fff;
+    padding: 15px;
+    border-radius: 12px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+}
+.user-chip {
+    padding: 8px 12px;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: center;
+    transition: 0.2s;
+    font-weight: 600;
+}
+.user-chip.selected {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+.explore-header {
+    background: var(--primary-light);
+    padding: 20px;
+    border-radius: 16px;
+    margin-bottom: 20px;
+    border: 2px dashed var(--primary);
 }
     </style>
     
@@ -417,20 +448,17 @@ header {
     </div>
 </div>
 <script>
-    // 🛑 REPLACE WITH YOUR WORKER URL
     const WORKER_URL = "https://tracker-new.meralmohamed121022.workers.dev";
-
     let LOCAL_DB = [];
     let DB_MAP = new Map();
 
     const app = {
         data: [], 
+        exploreData: [], // لتخزين بيانات كل المستخدمين
+        selectedUsers: new Set(), // لتخزين المستخدمين المختارين في الاكسبلور
         userId: null,
-        statFilter: 'all', // القيمة الافتراضية
-        target: null,
-        currentView: [],
+        statFilter: 'all',
         language: 'ar',
-        
         displayLimit: 50, 
         currentPage: 1,
         fullFilteredList: [], 
@@ -442,9 +470,8 @@ header {
                 catA: "القسم الرئيسي", catB: "القسم الفرعي", brand: "البراند", month: "شهر الانتهاء",
                 status: "الحالة", reset: "إعادة ضبط", upload: "رفع ملف", export: "تصدير",
                 sync: "متصل • مزامنة", logout: "خروج", deleteGrp: "حذف المجموعة", noData: "لا توجد بيانات",
-                delMsg: "هل أنت متأكد من حذف", cancel: "إلغاء", confirm: "تأكيد", updateExp: "تحديث التاريخ",
-                langToggleBtn: "English 🌐", explore: "استكشاف الكل", added: "تمت الإضافة بنجاح",
-                loadMore: "جاري تحميل المزيد..."
+                langToggleBtn: "English 🌐", explore: "استكشاف المستخدمين", added: "تم النسخ لحسابك",
+                selectUsers: "اختر الصيادلة لعرض بياناتهم:", items: "صنف"
             },
             en: {
                 total: "Total Items", found: "Found", missing: "Missing", pending: "Pending",
@@ -452,54 +479,41 @@ header {
                 catA: "Category A", catB: "Category B", brand: "Brand", month: "Expiry Month",
                 status: "Status", reset: "Reset Filters", upload: "Upload Excel", export: "Export",
                 sync: "Online • Synced", logout: "Logout", deleteGrp: "Delete Group", noData: "No items found",
-                delMsg: "Are you sure you want to delete", cancel: "Cancel", confirm: "Confirm", updateExp: "Update Expiry",
-                langToggleBtn: "العربية 🌐", explore: "Explore Global", added: "Added Successfully",
-                loadMore: "Loading more..."
+                langToggleBtn: "العربية 🌐", explore: "Explore Users", added: "Copied to your account",
+                selectUsers: "Select pharmacists to view their data:", items: "items"
             }
         },
 
         loadExternalDB: async () => {
             try {
-                const [res1, res2] = await Promise.all([
-                    fetch('products1.json'),
-                    fetch('products2.json')
-                ]);
-                const data1 = await res1.json();
-                const data2 = await res2.json();
+                const [res1, res2] = await Promise.all([fetch('products1.json'), fetch('products2.json')]);
+                const data1 = await res1.json(); const data2 = await res2.json();
                 LOCAL_DB = [...data1, ...data2];
                 DB_MAP = new Map(LOCAL_DB.map(i => [String(i.Code), i]));
-                console.log("Database Loaded:", LOCAL_DB.length);
-            } catch (error) { console.error("Error loading JSON:", error); }
+            } catch (e) { console.error("JSON Load Error", e); }
+        },
+
+        // دالة جديدة لجلب بيانات كل المستخدمين من السيرفر
+        loadAllUsersData: async () => {
+            try {
+                const res = await fetch(`${WORKER_URL}/api/inventory/loadAll`); // تأكد من وجود هذا المسار في الـ Worker
+                const json = await res.json();
+                // json.allProducts = [{userId: '66', code: '...', status: '...'}, ...]
+                app.exploreData = json.allProducts || [];
+            } catch (e) { console.error("Explore Data Error", e); }
         },
 
         init: async () => {
             await app.loadExternalDB();
             const uid = localStorage.getItem('inv_uid');
             document.body.classList.toggle('rtl', app.language === 'ar');
-            
             window.addEventListener('scroll', () => {
-                if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 500) {
-                    app.loadNextPage();
-                }
+                if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 500) app.loadNextPage();
             });
-
-            if (uid) {
-                document.getElementById('userId').value = uid;
-                app.login();
-            }
+            if (uid) { document.getElementById('userId').value = uid; app.login(); }
             app.observer = new IntersectionObserver((entries) => {
-                entries.forEach(e => {
-                    if (e.isIntersecting) { app.loadImage(e.target); app.observer.unobserve(e.target); }
-                });
+                entries.forEach(e => { if (e.isIntersecting) { app.loadImage(e.target); app.observer.unobserve(e.target); } });
             }, { rootMargin: "200px" });
-        },
-
-        toggleLanguage: () => {
-            app.language = app.language === 'ar' ? 'en' : 'ar';
-            document.body.classList.toggle('rtl', app.language === 'ar');
-            document.getElementById('langBtn').innerText = app.i18n[app.language].langToggleBtn;
-            app.initFilters();
-            app.render(true);
         },
 
         login: async () => {
@@ -522,132 +536,110 @@ header {
                 const json = await res.json();
                 app.data = json.products.map(p => {
                     const local = DB_MAP.get(String(p.code));
-                    return {
-                        ...p,
-                        nameEn: local ? local['Item Description'] : p.name,
+                    return { ...p, 
+                        nameEn: local ? local['Item Description'] : p.name, 
                         nameAr: local ? local['أسم المنتج'] : '',
-                        brand: local ? local.Brand : (p.brand || "OTHER"),
-                        catA: local ? local['Category Level A'] : "OTHER",
-                        catB: local ? local['Category Level B'] : "OTHER",
-                        dbImage: local ? local.itemurl : null,
-                        expiryDate: p.expiryDate,
-                        status: p.status || 'pending'
+                        brand: local ? local.Brand : (p.brand || "OTHER")
                     };
                 });
+                await app.loadAllUsersData(); // جلب داتا اليوزرز التانيين في الخلفية
                 app.initFilters();
                 app.render(true);
             } catch (e) { console.error(e); }
-        },
-
-        initFilters: () => {
-            const t = app.i18n[app.language];
-            const brands = [...new Set(app.data.map(i => i.brand))].sort();
-            const catAs = [...new Set(app.data.map(i => i.catA))].sort();
-            const months = [...new Set(app.data.map(i => i.expiryDate.slice(0, 7)))].sort();
-            app.fillSelect('brand', brands, t.brand);
-            app.fillSelect('catA', catAs, t.catA);
-            app.fillSelect('month', months, t.month);
-            app.handleCatAChange();
-        },
-
-        fillSelect: (id, arr, label) => {
-            const el = document.getElementById(id);
-            const allText = app.language === 'ar' ? 'الكل' : 'All';
-            el.innerHTML = `<option value="all">${allText} (${label})</option>` + arr.map(v => `<option value="${v}">${v}</option>`).join('');
-        },
-
-        handleCatAChange: () => {
-            const selectedA = document.getElementById('catA').value;
-            let filteredData = app.data;
-            if (selectedA !== 'all') filteredData = app.data.filter(i => i.catA === selectedA);
-            const catBs = [...new Set(filteredData.map(i => i.catB))].sort();
-            app.fillSelect('catB', catBs, app.i18n[app.language].catB);
-            app.render(true);
         },
 
         setStatFilter: (type, el) => {
             document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
             if (el) el.classList.add('active');
             app.statFilter = type;
-            
-            // مزامنة الـ dropdown مع الكارت المختار
-            const statusDropdown = document.getElementById('status');
-            if (type === 'not-found') statusDropdown.value = 'not-found';
-            else if (['found', 'pending'].includes(type)) statusDropdown.value = type;
-            else statusDropdown.value = 'all';
-
             app.render(true);
         },
 
+        toggleUserSelection: (userId) => {
+            if (app.selectedUsers.has(userId)) app.selectedUsers.delete(userId);
+            else app.selectedUsers.add(userId);
+            app.render(false);
+        },
+
         render: (resetPagination = true) => {
-            if (resetPagination) {
-                app.currentPage = 1;
-                window.scrollTo(0, 0);
-            }
-
+            if (resetPagination) app.currentPage = 1;
+            const t = app.i18n[app.language];
             const search = document.getElementById('search').value.toLowerCase().trim();
-            const fStatus = document.getElementById('status').value;
-            const fMonth = document.getElementById('month').value;
-            const fBrand = document.getElementById('brand').value;
-            const fCatA = document.getElementById('catA').value;
-            const fCatB = document.getElementById('catB').value;
-            const myCodes = new Set(app.data.map(i => String(i.code)));
 
-            // 1. تحديث العدادات (على كامل الداتا)
+            // تحديث العدادات الشخصية
             let s = { total: 0, found: 0, missing: 0, pending: 0, exp: 0 };
             app.data.forEach(i => {
                 const alert = app.getAlert(i.expiryDate);
                 s.total++;
                 if (i.status === 'found') s.found++;
                 else if (i.status === 'not-found') s.missing++;
-                else {
-                    s.pending++;
-                    if (alert === 'expired') s.exp++;
-                }
+                else { s.pending++; if (alert === 'expired') s.exp++; }
             });
 
-            const exploreItems = LOCAL_DB.filter(item => !myCodes.has(String(item.Code)));
-            if (document.getElementById('stExplore')) document.getElementById('stExplore').innerText = exploreItems.length;
             document.getElementById('stTotal').innerText = s.total;
             document.getElementById('stFound').innerText = s.found;
             document.getElementById('stMissing').innerText = s.missing;
             document.getElementById('stPending').innerText = s.pending;
             document.getElementById('stExpired').innerText = s.exp;
 
-            // 2. الفلترة
+            const container = document.getElementById('inventoryContainer');
+            
+            // --- وضع الاستكشاف (Explore Mode) ---
             if (app.statFilter === 'explore') {
-                app.fullFilteredList = exploreItems.map(item => ({
-                    code: item.Code, nameEn: item['Item Description'], nameAr: item['أسم المنتج'] || '',
-                    brand: item.Brand || 'OTHER', expiryDate: "2026-12-01", status: 'pending', isExplore: true
-                }));
+                // استخراج قائمة اليوزرز الفريدة (باستثنائك أنت)
+                const allUserIds = [...new Set(app.exploreData.map(it => it.userId))].filter(id => id !== app.userId);
+                
+                let exploreHtml = `<div class="explore-header"><h3>${t.selectUsers}</h3><div class="user-selector-grid">`;
+                allUserIds.forEach(id => {
+                    const isSelected = app.selectedUsers.has(id);
+                    exploreHtml += `<div class="user-chip ${isSelected ? 'selected' : ''}" onclick="app.toggleUserSelection('${id}')">Pharmacist: ${id}</div>`;
+                });
+                exploreHtml += `</div></div><div id="exploreResults"></div>`;
+                container.innerHTML = exploreHtml;
+
+                // فلترة الداتا بناء على اليوزرز المختارين
+                app.fullFilteredList = app.exploreData.filter(it => app.selectedUsers.has(it.userId)).map(it => {
+                    const local = DB_MAP.get(String(it.code));
+                    return {
+                        ...it,
+                        nameEn: local ? local['Item Description'] : 'Unknown',
+                        nameAr: local ? local['أسم المنتج'] : '',
+                        brand: local ? local.Brand : 'OTHER',
+                        isExplore: true,
+                        ownerId: it.userId // عشان نعرف الصنف ده بتاع مين
+                    };
+                });
             } else {
+                // --- الوضع الشخصي المعتاد ---
                 app.fullFilteredList = app.data.filter(item => {
                     const alert = app.getAlert(item.expiryDate);
-                    const m = item.expiryDate.slice(0, 7);
-                    
                     if (app.statFilter === 'found' && item.status !== 'found') return false;
                     if (app.statFilter === 'not-found' && item.status !== 'not-found') return false;
                     if (app.statFilter === 'pending' && item.status !== 'pending') return false;
                     if (app.statFilter === 'expired' && (alert !== 'expired' || item.status !== 'pending')) return false;
-                    
-                    if (fStatus !== 'all' && item.status !== fStatus) return false;
-                    if (fMonth !== 'all' && m !== fMonth) return false;
-                    if (fBrand !== 'all' && item.brand !== fBrand) return false;
-                    if (fCatA !== 'all' && item.catA !== fCatA) return false;
-                    if (fCatB !== 'all' && item.catB !== fCatB) return false;
                     return true;
                 });
             }
 
+            // تطبيق البحث
             if (search) {
                 app.fullFilteredList = app.fullFilteredList.filter(item => 
-                    String(item.nameEn).toLowerCase().includes(search) || 
-                    String(item.nameAr).toLowerCase().includes(search) || 
-                    String(item.code).includes(search)
+                    String(item.nameEn).toLowerCase().includes(search) || String(item.code).includes(search)
                 );
             }
 
-            // 3. رسم بوكسات الشهور (بناءً على القائمة المفلترة كاملة)
+            app.renderVisiblePart();
+        },
+
+        renderVisiblePart: () => {
+            const t = app.i18n[app.language];
+            const container = app.statFilter === 'explore' ? document.getElementById('exploreResults') : document.getElementById('inventoryContainer');
+            if (!container) return;
+
+            const limit = app.currentPage * app.displayLimit;
+            const visibleList = app.fullFilteredList.slice(0, limit);
+
+            // تجميع بالشهور مع تلوين بوكسات الشهور
             const navContainer = document.getElementById('monthNav');
             navContainer.innerHTML = '';
             const uniqueMonths = [...new Set(app.fullFilteredList.map(it => it.expiryDate.slice(0, 7)))].sort();
@@ -655,58 +647,39 @@ header {
             if (uniqueMonths.length > 0) {
                 navContainer.style.display = 'flex';
                 uniqueMonths.forEach(mKey => {
-                    const monthItems = app.fullFilteredList.filter(it => it.expiryDate.startsWith(mKey));
                     const alert = app.getAlert(mKey + "-01");
-                    const dateObj = new Date(mKey + "-01");
-                    const displayMonth = dateObj.toLocaleDateString(app.language === 'ar' ? 'ar-EG' : 'en-GB', { month: 'short', year: '2-digit' });
                     const chip = document.createElement('div');
                     chip.className = `month-chip ${alert === 'expired' ? 'st-expired' : alert === 'warning' ? 'st-warning' : 'st-safe'}`;
-                    chip.innerHTML = `<div class="m-date">${displayMonth}</div><div class="m-count">${monthItems.length} items</div>`;
+                    chip.innerHTML = `<div class="m-date">${mKey}</div>`;
                     chip.onclick = () => document.getElementById(`sec-${mKey}`)?.scrollIntoView({ behavior: 'smooth' });
                     navContainer.appendChild(chip);
                 });
-            } else { navContainer.style.display = 'none'; }
-
-            app.renderVisiblePart();
-        },
-
-        renderVisiblePart: () => {
-            const t = app.i18n[app.language];
-            const container = document.getElementById('inventoryContainer');
-            const limit = app.currentPage * app.displayLimit;
-            const visibleList = app.fullFilteredList.slice(0, limit);
-
-            if (visibleList.length === 0) {
-                container.innerHTML = `<div style="text-align:center; padding:40px; color:#ccc;">${t.noData}</div>`;
-                return;
             }
 
-            const groupedByMonth = {};
+            let finalHtml = "";
+            const grouped = {};
             visibleList.forEach(it => {
                 const mKey = it.expiryDate.slice(0, 7);
-                if (!groupedByMonth[mKey]) groupedByMonth[mKey] = [];
-                groupedByMonth[mKey].push(it);
+                if (!grouped[mKey]) grouped[mKey] = [];
+                grouped[mKey].push(it);
             });
 
-            let finalHtml = "";
-            Object.keys(groupedByMonth).sort().forEach(mKey => {
+            Object.keys(grouped).sort().forEach(mKey => {
                 const alert = app.getAlert(mKey + "-01");
                 let headerClass = alert === 'expired' ? 'expired-header' : alert === 'warning' ? 'warning-header' : 'safe-header';
-                finalHtml += `<div class="date-section" id="sec-${mKey}"><div class="date-header ${headerClass}"><div class="date-info">📅 ${mKey}</div></div><div class="date-grid">`;
-                groupedByMonth[mKey].forEach(item => {
-                    const itemAlert = app.getAlert(item.expiryDate);
+                finalHtml += `<div class="date-section" id="sec-${mKey}"><div class="date-header ${headerClass}">📅 ${mKey}</div><div class="date-grid">`;
+                
+                grouped[mKey].forEach(item => {
                     finalHtml += `
-                    <div class="card" style="${item.isExplore ? 'border: 2px dashed var(--primary);' : ''}">
+                    <div class="card" style="${item.isExplore ? 'border: 2px solid var(--primary); background: #fdfdfd' : ''}">
                         <div class="card-header">
-                            <span class="status-badge bg-${itemAlert === 'expired' ? 'exp' : itemAlert === 'warning' ? 'warn' : 'safe'}">${itemAlert.toUpperCase()}</span>
-                            <img data-code="${item.code}" class="card-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+                            ${item.isExplore ? `<span class="status-badge bg-warn" style="background:#6366f1">BY: ${item.ownerId}</span>` : ''}
+                            <img data-code="${item.code}" class="card-img">
                         </div>
                         <div class="card-body">
                             <div class="brand">${item.brand}</div>
                             <div class="name-en"><b>${item.nameEn}</b></div>
-                            <div class="name-ar">${item.nameAr || ''}</div>
-                            <div class="barcode-container"><svg class="barcode" jsbarcode-value="${item.code}" jsbarcode-width="1" jsbarcode-height="30" jsbarcode-displayValue="false"></svg></div>
-                            <div class="meta-row"><span>#${item.code}</span></div>
+                            <div class="name-ar">${item.nameAr}</div>
                             <div class="status-actions">
                                 <button class="st-btn found ${item.status === 'found' ? 'active' : ''}" onclick="app.update('${item.code}','${item.expiryDate}','found', ${item.isExplore || false})">${t.found}</button>
                                 <button class="st-btn missing ${item.status === 'not-found' ? 'active' : ''}" onclick="app.update('${item.code}','${item.expiryDate}','not-found', ${item.isExplore || false})">${t.missing}</button>
@@ -717,29 +690,18 @@ header {
                 finalHtml += `</div></div>`;
             });
 
-            if (app.fullFilteredList.length > limit) {
-                finalHtml += `<div id="loadMoreTrigger" style="text-align:center; padding:20px; color:var(--primary); font-weight:bold;">${t.loadMore}</div>`;
-            }
-
             container.innerHTML = finalHtml;
             document.querySelectorAll('.card-img').forEach(img => app.observer.observe(img));
             try { JsBarcode(".barcode").init(); } catch (e) { }
         },
 
-        loadNextPage: () => {
-            if (app.currentPage * app.displayLimit < app.fullFilteredList.length) {
-                app.currentPage++;
-                app.renderVisiblePart();
-            }
-        },
-
         update: async (code, date, actionStatus, isExplore = false) => {
             if (isExplore) {
+                // إذا كنت في الاكسبلور وضغطت فوند، ينسخ الكارت لحسابك أنت
                 const local = DB_MAP.get(String(code));
                 app.data.push({
                     code, nameEn: local['Item Description'], nameAr: local['أسم المنتج'] || '',
-                    brand: local.Brand || 'OTHER', expiryDate: date, status: actionStatus,
-                    catA: local['Category Level A'], catB: local['Category Level B']
+                    brand: local.Brand || 'OTHER', expiryDate: date, status: actionStatus
                 });
                 app.notify(app.i18n[app.language].added);
             } else {
@@ -750,6 +712,13 @@ header {
             fetch(`${WORKER_URL}/api/inventory/update`, { 
                 method: 'POST', body: JSON.stringify({ userId: app.userId, code, oldDate: date, status: actionStatus }) 
             });
+        },
+
+        loadNextPage: () => {
+            if (app.currentPage * app.displayLimit < app.fullFilteredList.length) {
+                app.currentPage++;
+                app.renderVisiblePart();
+            }
         },
 
         getAlert: (dateStr) => {
@@ -764,28 +733,8 @@ header {
         loadImage: async (img) => {
             const code = img.dataset.code;
             const local = DB_MAP.get(String(code));
-            if (local && local.itemurl) { img.src = local.itemurl; }
-            else {
-                try {
-                    const res = await fetch(`${WORKER_URL}/api/product?code=${code}`);
-                    const json = await res.json();
-                    img.src = (json.success && json.image) ? json.image : `https://placehold.co/400x300/f1f5f9/cbd5e1?text=${code}`;
-                } catch(e) { img.src = `https://placehold.co/400x300/f1f5f9/cbd5e1?text=Error`; }
-            }
+            img.src = (local && local.itemurl) ? local.itemurl : `https://placehold.co/400x300/f1f5f9/cbd5e1?text=${code}`;
             img.onload = () => img.classList.add('loaded');
-        },
-
-        resetFilters: () => {
-            document.getElementById('search').value = '';
-            document.getElementById('catA').value = 'all';
-            document.getElementById('brand').value = 'all';
-            document.getElementById('month').value = 'all';
-            document.getElementById('status').value = 'all';
-            app.statFilter = 'all';
-            document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
-            document.querySelector('[onclick*="all"]').classList.add('active');
-            app.handleCatAChange();
-            app.notify(app.i18n[app.language].reset);
         },
 
         notify: (msg, type = 'success') => {
@@ -796,6 +745,29 @@ header {
             t.innerHTML = `<div>${msg}</div>`;
             box.appendChild(t);
             setTimeout(() => { t.remove(); }, 3000);
+        },
+
+        initFilters: () => {
+            const t = app.i18n[app.language];
+            const brands = [...new Set(app.data.map(i => i.brand))].sort();
+            const catAs = [...new Set(app.data.map(i => i.catA))].sort();
+            app.fillSelect('brand', brands, t.brand);
+            app.fillSelect('catA', catAs, t.catA);
+            app.handleCatAChange();
+        },
+
+        fillSelect: (id, arr, label) => {
+            const el = document.getElementById(id);
+            if(el) el.innerHTML = `<option value="all">All ${label}</option>` + arr.map(v => `<option value="${v}">${v}</option>`).join('');
+        },
+
+        handleCatAChange: () => {
+            const selectedA = document.getElementById('catA').value;
+            let filtered = app.data;
+            if (selectedA !== 'all') filtered = app.data.filter(i => i.catA === selectedA);
+            const catBs = [...new Set(filtered.map(i => i.catB))].sort();
+            app.fillSelect('catB', catBs, 'Sub-Cats');
+            app.render(true);
         }
     };
 
