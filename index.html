@@ -343,8 +343,9 @@ header {
         </div>
     </header>
 
-    <div class="stats-grid">
-        <div class="stat-card active" onclick="app.setStatFilter('all', this)">
+       <div class="stats-grid">
+        <!-- أزلنا كلمة active من هنا -->
+        <div class="stat-card" onclick="app.setStatFilter('all', this)">
             <span class="stat-value" style="color:var(--primary)" id="stTotal">0</span>
             <span class="stat-label">Total Items</span>
         </div>
@@ -359,7 +360,8 @@ header {
             <span class="stat-label">Missing</span>
         </div>
 
-        <div class="stat-card" onclick="app.setStatFilter('pending', this)">
+        <!-- 👈 أضفنا كلمة active هنا ليظهر الكارت مفعل افتراضياً -->
+        <div class="stat-card active" onclick="app.setStatFilter('pending', this)">
             <span class="stat-value" style="color:var(--primary)" id="stPending">0</span>
             <span class="stat-label">Pending</span>
         </div>
@@ -368,13 +370,15 @@ header {
             <span class="stat-value" style="color:var(--danger)" id="stExpired">0</span>
             <span class="stat-label">Expired</span>
         </div>
-
-        <div class="stat-card" onclick="app.setStatFilter('explore', this)" style="border: 2px dashed #4F46E5; background: #EEF2FF;">
-            <span class="stat-value" style="color:var(--primary)" id="stExplore">0</span>
-            <span class="stat-label">Explore Global</span>
-        </div>
     </div>
 
+    <!-- 👈 فصلنا كارت الاستكشاف ووضعناه بالأسفل بعرض الشاشة ولون بنفسجي مميز -->
+    <div style="margin-bottom: 25px;">
+        <div class="stat-card" onclick="app.setStatFilter('explore', this)" style="border: 2px solid #8B5CF6; background: #F5F3FF; display: flex; justify-content: center; align-items: center; gap: 20px; padding: 15px;">
+           <span class="stat-label" style="color:#6D28D9; font-size:1.1rem;">🌍 استكشاف الصيدليات (Explore Pharmacies) ⚕️</span>
+            <span class="stat-value" style="color:#7C3AED; margin:0;" id="stExplore">0</span>
+        </div>
+    </div>
     <div class="controls-area">
         <div class="filters-row">
             <div class="filter-box">
@@ -482,7 +486,7 @@ header {
         allRegisteredUsers: [], 
         selectedUsers: new Set(), 
         userId: null,
-        statFilter: 'all', 
+        statFilter: 'pending', 
         exploreMode: false, 
         language: 'ar',
         displayLimit: 50, 
