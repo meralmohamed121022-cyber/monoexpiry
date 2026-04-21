@@ -262,6 +262,30 @@ header {
     margin-bottom: 20px;
     border: 2px dashed var(--primary);
 }
+.upload-img-btn {
+    position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+    background: var(--primary); color: white; border: none; border-radius: 20px;
+    padding: 4px 12px; font-size: 11px; cursor: pointer; opacity: 0.85;
+    white-space: nowrap; z-index: 3; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+.upload-img-btn:hover { opacity: 1; transform: translateX(-50%) translateY(-2px); }
+
+#imgUploadModal {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+    z-index: 9999; display: none; align-items: center; justify-content: center;
+}
+.img-modal-box {
+    background: white; border-radius: 20px; padding: 30px; width: 90%; max-width: 380px; text-align: center;
+}
+.img-preview { width: 100%; max-height: 200px; object-fit: contain; border-radius: 10px; margin: 15px 0; display: none; }
+.whatsapp-img-btn {
+    position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+    background: #25D366; color: white; border: none; border-radius: 20px;
+    padding: 6px 14px; font-size: 11px; font-weight: bold; cursor: pointer; 
+    white-space: nowrap; z-index: 3; box-shadow: 0 4px 10px rgba(37,211,102,0.3);
+    display: flex; align-items: center; gap: 5px; transition: 0.2s;
+}
+.whatsapp-img-btn:hover { background: #1ebc59; transform: translateX(-50%) translateY(-2px); }
     </style>
     
 </head>
@@ -866,11 +890,42 @@ header {
             return 'safe';
         },
 
-        loadImage: async (img) => {
+               loadImage: async (img) => {
             const code = img.dataset.code;
             const local = DB_MAP.get(String(code));
-            img.src = (local && local.itemurl) ? local.itemurl : `https://placehold.co/400x300/f1f5f9/cbd5e1?text=${code}`;
+
+            // 1. لو الصورة موجودة في قاعدة البيانات (JSON) اعرضها فوراً
+            if (local && local.itemurl) {
+                img.onload = () => img.classList.add('loaded');
+                img.src = local.itemurl;
+                return;
+            }
+
+            // 2. لو مفيش صورة، هنعرض الصورة الرمادية البديلة
             img.onload = () => img.classList.add('loaded');
+            img.src = `https://placehold.co/400x300/f1f5f9/cbd5e1?text=${code}`;
+
+            // 3. نضيف زر الواتساب فوق الكارت
+            const cardHeader = img.closest('.card-header');
+            if (cardHeader && !cardHeader.querySelector('.whatsapp-img-btn')) {
+                const btn = document.createElement('button');
+                btn.className = 'whatsapp-img-btn';
+                btn.innerHTML = '💬 إرسال صورة للصنف';
+                
+                btn.onclick = (e) => { 
+                    e.stopPropagation(); // عشان ميضغطش على الكارت نفسه
+                    
+                    // الرسالة الجاهزة التي ستظهر في الواتساب
+                    const msg = `مرحباً، أرفق لك صورة للصنف كود: #${code}`;
+                    
+                    // رابط فتح الواتساب (سواء كان اليوزر على الموبايل أو الكمبيوتر)
+                    const whatsappUrl = `https://wa.me/966541932559?text=${encodeURIComponent(msg)}`;
+                    
+                    window.open(whatsappUrl, '_blank');
+                };
+                
+                cardHeader.appendChild(btn);
+            }
         },
 
         notify: (msg, type = 'success') => {
