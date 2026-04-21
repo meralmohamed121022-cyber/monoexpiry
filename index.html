@@ -431,10 +431,9 @@ header {
         currentView: [],
         language: 'ar',
         
-        // إعدادات التحميل التدريجي (Lazy Rendering)
         displayLimit: 50, 
         currentPage: 1,
-        fullFilteredList: [], // لتخزين القائمة الكاملة المفلترة في الذاكرة
+        fullFilteredList: [], 
 
         i18n: {
             ar: {
@@ -469,7 +468,6 @@ header {
                 const data2 = await res2.json();
                 LOCAL_DB = [...data1, ...data2];
                 DB_MAP = new Map(LOCAL_DB.map(i => [String(i.Code), i]));
-                console.log("Database Loaded:", LOCAL_DB.length);
             } catch (error) { console.error("Error loading JSON:", error); }
         },
 
@@ -478,7 +476,6 @@ header {
             const uid = localStorage.getItem('inv_uid');
             document.body.classList.toggle('rtl', app.language === 'ar');
             
-            // إضافة مستمع للسكروول للتحميل التلقائي
             window.addEventListener('scroll', () => {
                 if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 500) {
                     app.loadNextPage();
@@ -494,6 +491,14 @@ header {
                     if (e.isIntersecting) { app.loadImage(e.target); app.observer.unobserve(e.target); }
                 });
             }, { rootMargin: "200px" });
+        },
+
+        toggleLanguage: () => {
+            app.language = app.language === 'ar' ? 'en' : 'ar';
+            document.body.classList.toggle('rtl', app.language === 'ar');
+            document.getElementById('langBtn').innerText = app.i18n[app.language].langToggleBtn;
+            app.initFilters();
+            app.render(true);
         },
 
         login: async () => {
@@ -528,8 +533,49 @@ header {
                         status: p.status || 'pending'
                     };
                 });
+                app.initFilters();
                 app.render(true);
             } catch (e) { console.error(e); }
+        },
+
+        initFilters: () => {
+            const t = app.i18n[app.language];
+            const brands = [...new Set(app.data.map(i => i.brand))].sort();
+            const catAs = [...new Set(app.data.map(i => i.catA))].sort();
+            const months = [...new Set(app.data.map(i => i.expiryDate.slice(0, 7)))].sort();
+            app.fillSelect('brand', brands, t.brand);
+            app.fillSelect('catA', catAs, t.catA);
+            app.fillSelect('month', months, t.month);
+            app.handleCatAChange();
+        },
+
+        fillSelect: (id, arr, label) => {
+            const el = document.getElementById(id);
+            const allText = app.language === 'ar' ? 'الكل' : 'All';
+            el.innerHTML = `<option value="all">${allText} (${label})</option>` + arr.map(v => `<option value="${v}">${v}</option>`).join('');
+        },
+
+        handleCatAChange: () => {
+            const selectedA = document.getElementById('catA').value;
+            let filteredData = app.data;
+            if (selectedA !== 'all') filteredData = app.data.filter(i => i.catA === selectedA);
+            const catBs = [...new Set(filteredData.map(i => i.catB))].sort();
+            app.fillSelect('catB', catBs, app.i18n[app.language].catB);
+            app.render(true);
+        },
+
+        setStatFilter: (type, el) => {
+            document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+            if (el) el.classList.add('active');
+            app.statFilter = type;
+            
+            // مزامنة الـ dropdown مع الكارت المختار
+            const statusDropdown = document.getElementById('status');
+            if (type === 'not-found') statusDropdown.value = 'not-found';
+            else if (['found', 'pending'].includes(type)) statusDropdown.value = type;
+            else statusDropdown.value = 'all';
+
+            app.render(true);
         },
 
         render: (resetPagination = true) => {
@@ -538,11 +584,15 @@ header {
                 window.scrollTo(0, 0);
             }
 
-            const t = app.i18n[app.language];
             const search = document.getElementById('search').value.toLowerCase().trim();
+            const fStatus = document.getElementById('status').value;
+            const fMonth = document.getElementById('month').value;
+            const fBrand = document.getElementById('brand').value;
+            const fCatA = document.getElementById('catA').value;
+            const fCatB = document.getElementById('catB').value;
             const myCodes = new Set(app.data.map(i => String(i.code)));
 
-            // 1. تحديث العدادات (تتم على كامل الداتا في الذاكرة لضمان الدقة)
+            // 1. حساب الإحصائيات (دائماً على كامل البيانات)
             let s = { total: 0, found: 0, missing: 0, pending: 0, exp: 0 };
             app.data.forEach(i => {
                 const alert = app.getAlert(i.expiryDate);
@@ -563,29 +613,33 @@ header {
             document.getElementById('stPending').innerText = s.pending;
             document.getElementById('stExpired').innerText = s.exp;
 
-            // 2. فلترة القائمة الكاملة
+            // 2. الفلترة
             if (app.statFilter === 'explore') {
                 app.fullFilteredList = exploreItems.map(item => ({
-                    code: item.Code,
-                    nameEn: item['Item Description'],
-                    nameAr: item['أسم المنتج'] || '',
-                    brand: item.Brand || 'OTHER',
-                    expiryDate: "2026-12-01",
-                    status: 'pending',
-                    isExplore: true
+                    code: item.Code, nameEn: item['Item Description'], nameAr: item['أسم المنتج'] || '',
+                    brand: item.Brand || 'OTHER', catA: item['Category Level A'], catB: item['Category Level B'],
+                    expiryDate: "2026-12-01", status: 'pending', isExplore: true
                 }));
             } else {
                 app.fullFilteredList = app.data.filter(item => {
                     const alert = app.getAlert(item.expiryDate);
+                    const m = item.expiryDate.slice(0, 7);
+                    
                     if (app.statFilter === 'found' && item.status !== 'found') return false;
                     if (app.statFilter === 'not-found' && item.status !== 'not-found') return false;
                     if (app.statFilter === 'pending' && item.status !== 'pending') return false;
                     if (app.statFilter === 'expired' && (alert !== 'expired' || item.status !== 'pending')) return false;
+                    
+                    if (fStatus !== 'all' && item.status !== fStatus) return false;
+                    if (fMonth !== 'all' && m !== fMonth) return false;
+                    if (fBrand !== 'all' && item.brand !== fBrand) return false;
+                    if (fCatA !== 'all' && item.catA !== fCatA) return false;
+                    if (fCatB !== 'all' && item.catB !== fCatB) return false;
+                    
                     return true;
                 });
             }
 
-            // البحث
             if (search) {
                 app.fullFilteredList = app.fullFilteredList.filter(item => 
                     String(item.nameEn).toLowerCase().includes(search) || 
@@ -594,7 +648,6 @@ header {
                 );
             }
 
-            // 3. تقطيع الداتا للعرض (أول 50 مثلاً)
             app.renderVisiblePart();
         },
 
@@ -609,7 +662,6 @@ header {
                 return;
             }
 
-            // تجميع بالشهور للظاهر فقط
             const groupedByMonth = {};
             visibleList.forEach(it => {
                 const mKey = it.expiryDate.slice(0, 7);
@@ -619,13 +671,10 @@ header {
 
             let finalHtml = "";
             Object.keys(groupedByMonth).sort().forEach(mKey => {
-                const items = groupedByMonth[mKey];
                 const alert = app.getAlert(mKey + "-01");
                 let headerClass = alert === 'expired' ? 'expired-header' : alert === 'warning' ? 'warning-header' : 'safe-header';
-                
-                finalHtml += `<div class="date-section" id="sec-${mKey}"><div class="date-header ${headerClass}"><div class="date-info">📅 ${mKey}</div></div><div class="date-grid">`;
-                
-                items.forEach(item => {
+                finalHtml += `<div class="date-section"><div class="date-header ${headerClass}"><div class="date-info">📅 ${mKey}</div></div><div class="date-grid">`;
+                groupedByMonth[mKey].forEach(item => {
                     const itemAlert = app.getAlert(item.expiryDate);
                     finalHtml += `
                     <div class="card" style="${item.isExplore ? 'border: 2px dashed var(--primary);' : ''}">
@@ -648,7 +697,6 @@ header {
                 finalHtml += `</div></div>`;
             });
 
-            // إضافة مؤشر تحميل في النهاية لو لسه فيه داتا
             if (app.fullFilteredList.length > limit) {
                 finalHtml += `<div id="loadMoreTrigger" style="text-align:center; padding:20px; color:var(--primary); font-weight:bold;">${t.loadMore}</div>`;
             }
@@ -670,14 +718,15 @@ header {
                 const local = DB_MAP.get(String(code));
                 app.data.push({
                     code, nameEn: local['Item Description'], nameAr: local['أسم المنتج'] || '',
-                    brand: local.Brand || 'OTHER', expiryDate: date, status: actionStatus
+                    brand: local.Brand || 'OTHER', expiryDate: date, status: actionStatus,
+                    catA: local['Category Level A'], catB: local['Category Level B']
                 });
                 app.notify(app.i18n[app.language].added);
             } else {
                 const item = app.data.find(i => String(i.code) === String(code) && i.expiryDate === date);
                 if (item) item.status = (item.status === actionStatus) ? 'pending' : actionStatus;
             }
-            app.render(false); // تحديث بدون تصفير السكروول
+            app.render(false);
             fetch(`${WORKER_URL}/api/inventory/update`, { 
                 method: 'POST', body: JSON.stringify({ userId: app.userId, code, oldDate: date, status: actionStatus }) 
             });
