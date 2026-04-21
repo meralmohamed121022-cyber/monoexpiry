@@ -221,7 +221,18 @@ body.rtl .stat-card { text-align: center; }
 body.rtl .date-header { border-left: none; border-right: 6px solid var(--primary); }
 body.rtl .card-tools { left: auto; right: 10px; }
 body.rtl .status-badge { right: auto; left: 10px; }
+header {
+    background: var(--surface);
+    padding: 15px 25px;
+    border-radius: 16px;
+    display: flex;
+    justify-content: space-between; /* دي اللي بتطرد العناصر للأطراف */
+    align-items: center;
+    margin-bottom: 25px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+}
     </style>
+    
 </head>
 <body>
 
@@ -262,40 +273,50 @@ body.rtl .status-badge { right: auto; left: 10px; }
     </div>
 
     <div class="app-container" id="mainApp">
-        <header>
-            <div class="logo-area">
-                <div style="width:40px; height:40px; background:var(--primary); border-radius:8px; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold">EC</div>
-                <div>
-                    <h2 style="font-size:18px">Expiry Check</h2>
-                    <div style="font-size:11px; color:var(--text-light)" id="syncStatus">Online • Synced</div>
-                </div>
-            </div>
-            <div style="display:flex; align-items:center; gap:15px">
-                <div id="userBadge" style="font-weight:600; color:var(--text-main)"></div>
-                <button class="btn btn-danger" style="padding:8px 12px" onclick="app.logout()">Logout</button>
-            </div>
-            <button class="btn btn-ghost" onclick="app.toggleLanguage()" id="langBtn">English 🌐</button>
-        </header>
+<header>
+    <div class="logo-area">
+        <div style="width:40px; height:40px; background:var(--primary); border-radius:8px; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold">EC</div>
+        <div>
+            <h2 style="font-size:18px">Expiry Check</h2>
+            <div style="font-size:11px; color:var(--text-light)" id="syncStatus">Online • Synced</div>
+        </div>
+    </div>
+
+    <div style="display:flex; align-items:center; gap:12px">
+        <div id="userBadge" style="font-weight:600; color:var(--text-main)"></div>
+        <button class="btn btn-danger" style="padding:8px 12px" onclick="app.logout()">Logout</button>
+        <button class="btn btn-ghost" onclick="app.toggleLanguage()" id="langBtn">English 🌐</button>
+    </div>
+</header>
 <div class="stats-grid">
     <div class="stat-card active" onclick="app.setStatFilter('all', this)">
         <span class="stat-value" style="color:var(--primary)" id="stTotal">0</span>
         <span class="stat-label">Total Items</span>
     </div>
+
     <div class="stat-card" onclick="app.setStatFilter('found', this)">
         <span class="stat-value" style="color:var(--success)" id="stFound">0</span>
         <span class="stat-label">Found</span>
     </div>
+
     <div class="stat-card" onclick="app.setStatFilter('not-found', this)">
         <span class="stat-value" style="color:var(--danger)" id="stMissing">0</span>
         <span class="stat-label">Missing</span>
     </div>
+
     <div class="stat-card" onclick="app.setStatFilter('pending', this)">
         <span class="stat-value" style="color:var(--primary)" id="stPending">0</span>
         <span class="stat-label">Pending</span>
     </div>
+
     <div class="stat-card" onclick="app.setStatFilter('expired', this)">
         <span class="stat-value" style="color:var(--danger)" id="stExpired">0</span>
         <span class="stat-label">Expired</span>
+    </div>
+
+    <div class="stat-card" onclick="app.setStatFilter('explore', this)" style="border: 2px dashed #CBD5E1; background: #F8FAFC;">
+        <span class="stat-value" style="color:var(--text-light)" id="stExplore">0</span>
+        <span class="stat-label">Explore Global</span>
     </div>
 </div>
         <div class="controls-area">
@@ -395,21 +416,25 @@ body.rtl .status-badge { right: auto; left: 10px; }
         </div>
     </div>
 </div>
-  <script>
+<script>
     // 🛑 REPLACE WITH YOUR WORKER URL
     const WORKER_URL = "https://tracker-new.meralmohamed121022.workers.dev";
 
-    // مصفوفة فارغة سيتم ملؤها من الملفات الخارجية
     let LOCAL_DB = [];
     let DB_MAP = new Map();
 
     const app = {
-        data: [],
+        data: [], 
         userId: null,
         statFilter: 'pending',
         target: null,
         currentView: [],
-        language: 'ar', 
+        language: 'ar',
+        
+        // إعدادات التحميل التدريجي (Lazy Rendering)
+        displayLimit: 50, 
+        currentPage: 1,
+        fullFilteredList: [], // لتخزين القائمة الكاملة المفلترة في الذاكرة
 
         i18n: {
             ar: {
@@ -419,7 +444,8 @@ body.rtl .status-badge { right: auto; left: 10px; }
                 status: "الحالة", reset: "إعادة ضبط", upload: "رفع ملف", export: "تصدير",
                 sync: "متصل • مزامنة", logout: "خروج", deleteGrp: "حذف المجموعة", noData: "لا توجد بيانات",
                 delMsg: "هل أنت متأكد من حذف", cancel: "إلغاء", confirm: "تأكيد", updateExp: "تحديث التاريخ",
-                langToggleBtn: "English 🌐", loading: "جاري تحميل قاعدة البيانات..."
+                langToggleBtn: "English 🌐", explore: "استكشاف الكل", added: "تمت الإضافة بنجاح",
+                loadMore: "جاري تحميل المزيد..."
             },
             en: {
                 total: "Total Items", found: "Found", missing: "Missing", pending: "Pending",
@@ -428,79 +454,51 @@ body.rtl .status-badge { right: auto; left: 10px; }
                 status: "Status", reset: "Reset Filters", upload: "Upload Excel", export: "Export",
                 sync: "Online • Synced", logout: "Logout", deleteGrp: "Delete Group", noData: "No items found",
                 delMsg: "Are you sure you want to delete", cancel: "Cancel", confirm: "Confirm", updateExp: "Update Expiry",
-                langToggleBtn: "العربية 🌐", loading: "Loading Database..."
+                langToggleBtn: "العربية 🌐", explore: "Explore Global", added: "Added Successfully",
+                loadMore: "Loading more..."
             }
         },
 
-        // دالة تحميل ملفات الـ JSON الخارجية
         loadExternalDB: async () => {
             try {
                 const [res1, res2] = await Promise.all([
                     fetch('products1.json'),
                     fetch('products2.json')
                 ]);
-                
                 const data1 = await res1.json();
                 const data2 = await res2.json();
-                
                 LOCAL_DB = [...data1, ...data2];
                 DB_MAP = new Map(LOCAL_DB.map(i => [String(i.Code), i]));
-                console.log("Database Loaded: ", LOCAL_DB.length, " items");
-            } catch (error) {
-                console.error("Error loading JSON files:", error);
-                app.notify("Error loading products files", "error");
-            }
+                console.log("Database Loaded:", LOCAL_DB.length);
+            } catch (error) { console.error("Error loading JSON:", error); }
         },
 
         init: async () => {
-            // تحميل البيانات الخارجية أولاً
             await app.loadExternalDB();
-
             const uid = localStorage.getItem('inv_uid');
             document.body.classList.toggle('rtl', app.language === 'ar');
             
-            const statusSelect = document.getElementById('status');
-            if (statusSelect) statusSelect.value = 'pending';
+            // إضافة مستمع للسكروول للتحميل التلقائي
+            window.addEventListener('scroll', () => {
+                if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 500) {
+                    app.loadNextPage();
+                }
+            });
 
             if (uid) {
                 document.getElementById('userId').value = uid;
                 app.login();
             }
-            
             app.observer = new IntersectionObserver((entries) => {
                 entries.forEach(e => {
-                    if (e.isIntersecting) {
-                        app.loadImage(e.target);
-                        app.observer.unobserve(e.target);
-                    }
+                    if (e.isIntersecting) { app.loadImage(e.target); app.observer.unobserve(e.target); }
                 });
             }, { rootMargin: "200px" });
         },
 
-        toggleLanguage: () => {
-            app.language = app.language === 'ar' ? 'en' : 'ar';
-            document.body.classList.toggle('rtl', app.language === 'ar');
-            const langBtn = document.getElementById('langBtn');
-            if (langBtn) langBtn.innerText = app.i18n[app.language].langToggleBtn;
-            app.initFilters(); 
-            app.render();
-            app.notify(app.language === 'ar' ? "تم تحويل الواجهة للعربية" : "Interface switched to English");
-        },
-
-        notify: (msg, type = 'success') => {
-            const box = document.getElementById('toast-box');
-            const t = document.createElement('div');
-            t.className = `toast`;
-            t.style.borderLeftColor = type === 'success' ? 'var(--success)' : 'var(--danger)';
-            t.innerHTML = `<span style="font-size:18px">${type === 'success' ? '🎉' : '⚠️'}</span> <div style="flex:1">${msg}</div>`;
-            box.appendChild(t);
-            setTimeout(() => t.classList.add('show'), 10);
-            setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400) }, 3000);
-        },
-
         login: async () => {
             const id = document.getElementById('userId').value;
-            if (!id) return app.notify(app.language === 'ar' ? "برجاء إدخال الكود" : "Please enter ID", "error");
+            if (!id) return;
             try {
                 const res = await fetch(`${WORKER_URL}/api/login`, { method: 'POST', body: JSON.stringify({ userId: id }) });
                 if (!res.ok) throw new Error();
@@ -508,14 +506,9 @@ body.rtl .status-badge { right: auto; left: 10px; }
                 localStorage.setItem('inv_uid', id);
                 document.getElementById('loginScreen').style.display = 'none';
                 document.getElementById('mainApp').style.display = 'block';
-                const langBtn = document.getElementById('langBtn');
-                if (langBtn) langBtn.innerText = app.i18n[app.language].langToggleBtn;
-                document.getElementById('userBadge').innerText = `${app.language === 'ar' ? 'المستخدم' : 'User'}: ${id}`;
                 app.load();
-            } catch (e) { app.notify(app.language === 'ar' ? "فشل تسجيل الدخول" : "Login failed", "error"); }
+            } catch (e) { app.notify("Login failed", "error"); }
         },
-
-        logout: () => { localStorage.removeItem('inv_uid'); location.reload(); },
 
         load: async () => {
             try {
@@ -525,8 +518,8 @@ body.rtl .status-badge { right: auto; left: 10px; }
                     const local = DB_MAP.get(String(p.code));
                     return {
                         ...p,
-                        nameEn: local ? (local['Item Description']) : p.name,
-                        nameAr: local ? (local['أسم المنتج']) : '',
+                        nameEn: local ? local['Item Description'] : p.name,
+                        nameAr: local ? local['أسم المنتج'] : '',
                         brand: local ? local.Brand : (p.brand || "OTHER"),
                         catA: local ? local['Category Level A'] : "OTHER",
                         catB: local ? local['Category Level B'] : "OTHER",
@@ -535,59 +528,159 @@ body.rtl .status-badge { right: auto; left: 10px; }
                         status: p.status || 'pending'
                     };
                 });
-                app.initFilters();
-                app.render();
-                app.notify(app.language === 'ar' ? "تمت المزامنة" : "Data synced");
-            } catch (e) { app.notify(app.language === 'ar' ? "خطأ في المزامنة" : "Sync error", "error"); }
+                app.render(true);
+            } catch (e) { console.error(e); }
         },
 
-        initFilters: () => {
-            const t = app.i18n[app.language];
-            const brands = [...new Set(app.data.map(i => i.brand))].sort();
-            const catAs = [...new Set(app.data.map(i => i.catA))].sort();
-            const months = [...new Set(app.data.map(i => new Date(i.expiryDate).toISOString().slice(0, 7)))].sort();
-            app.fillSelect('brand', brands, t.brand);
-            app.fillSelect('catA', catAs, t.catA);
-            app.fillSelect('month', months, t.month);
-            app.handleCatAChange();
-        },
-
-        fillSelect: (id, arr, label) => {
-            const el = document.getElementById(id);
-            const allText = app.language === 'ar' ? 'الكل' : 'All';
-            el.innerHTML = `<option value="all">${allText} (${label})</option>` + arr.map(v => `<option value="${v}">${v}</option>`).join('');
-        },
-
-        handleCatAChange: () => {
-            const selectedA = document.getElementById('catA').value;
-            let filteredData = app.data;
-            if (selectedA !== 'all') filteredData = app.data.filter(i => i.catA === selectedA);
-            const catBs = [...new Set(filteredData.map(i => i.catB))].sort();
-            app.fillSelect('catB', catBs, app.i18n[app.language].catB);
-            app.render();
-        },
-
-        setStatFilter: (type, el) => {
-            document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
-            if (el) el.classList.add('active');
-            app.statFilter = type;
-            if (type === 'all' || type === 'found' || type === 'not-found' || type === 'pending') {
-                document.getElementById('status').value = type === 'not-found' ? 'not-found' : type;
+        render: (resetPagination = true) => {
+            if (resetPagination) {
+                app.currentPage = 1;
+                window.scrollTo(0, 0);
             }
-            app.render();
+
+            const t = app.i18n[app.language];
+            const search = document.getElementById('search').value.toLowerCase().trim();
+            const myCodes = new Set(app.data.map(i => String(i.code)));
+
+            // 1. تحديث العدادات (تتم على كامل الداتا في الذاكرة لضمان الدقة)
+            let s = { total: 0, found: 0, missing: 0, pending: 0, exp: 0 };
+            app.data.forEach(i => {
+                const alert = app.getAlert(i.expiryDate);
+                s.total++;
+                if (i.status === 'found') s.found++;
+                else if (i.status === 'not-found') s.missing++;
+                else {
+                    s.pending++;
+                    if (alert === 'expired') s.exp++;
+                }
+            });
+
+            const exploreItems = LOCAL_DB.filter(item => !myCodes.has(String(item.Code)));
+            if (document.getElementById('stExplore')) document.getElementById('stExplore').innerText = exploreItems.length;
+            document.getElementById('stTotal').innerText = s.total;
+            document.getElementById('stFound').innerText = s.found;
+            document.getElementById('stMissing').innerText = s.missing;
+            document.getElementById('stPending').innerText = s.pending;
+            document.getElementById('stExpired').innerText = s.exp;
+
+            // 2. فلترة القائمة الكاملة
+            if (app.statFilter === 'explore') {
+                app.fullFilteredList = exploreItems.map(item => ({
+                    code: item.Code,
+                    nameEn: item['Item Description'],
+                    nameAr: item['أسم المنتج'] || '',
+                    brand: item.Brand || 'OTHER',
+                    expiryDate: "2026-12-01",
+                    status: 'pending',
+                    isExplore: true
+                }));
+            } else {
+                app.fullFilteredList = app.data.filter(item => {
+                    const alert = app.getAlert(item.expiryDate);
+                    if (app.statFilter === 'found' && item.status !== 'found') return false;
+                    if (app.statFilter === 'not-found' && item.status !== 'not-found') return false;
+                    if (app.statFilter === 'pending' && item.status !== 'pending') return false;
+                    if (app.statFilter === 'expired' && (alert !== 'expired' || item.status !== 'pending')) return false;
+                    return true;
+                });
+            }
+
+            // البحث
+            if (search) {
+                app.fullFilteredList = app.fullFilteredList.filter(item => 
+                    String(item.nameEn).toLowerCase().includes(search) || 
+                    String(item.nameAr).toLowerCase().includes(search) || 
+                    String(item.code).includes(search)
+                );
+            }
+
+            // 3. تقطيع الداتا للعرض (أول 50 مثلاً)
+            app.renderVisiblePart();
         },
 
-        resetFilters: () => {
-            document.getElementById('search').value = '';
-            document.getElementById('catA').value = 'all';
-            document.getElementById('brand').value = 'all';
-            document.getElementById('month').value = 'all';
-            document.getElementById('status').value = 'pending';
-            app.statFilter = 'pending';
-            document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
-            const pCard = document.querySelector('[onclick*="pending"]');
-            if (pCard) pCard.classList.add('active');
-            app.handleCatAChange();
+        renderVisiblePart: () => {
+            const t = app.i18n[app.language];
+            const container = document.getElementById('inventoryContainer');
+            const limit = app.currentPage * app.displayLimit;
+            const visibleList = app.fullFilteredList.slice(0, limit);
+
+            if (visibleList.length === 0) {
+                container.innerHTML = `<div style="text-align:center; padding:40px; color:#ccc;">${t.noData}</div>`;
+                return;
+            }
+
+            // تجميع بالشهور للظاهر فقط
+            const groupedByMonth = {};
+            visibleList.forEach(it => {
+                const mKey = it.expiryDate.slice(0, 7);
+                if (!groupedByMonth[mKey]) groupedByMonth[mKey] = [];
+                groupedByMonth[mKey].push(it);
+            });
+
+            let finalHtml = "";
+            Object.keys(groupedByMonth).sort().forEach(mKey => {
+                const items = groupedByMonth[mKey];
+                const alert = app.getAlert(mKey + "-01");
+                let headerClass = alert === 'expired' ? 'expired-header' : alert === 'warning' ? 'warning-header' : 'safe-header';
+                
+                finalHtml += `<div class="date-section" id="sec-${mKey}"><div class="date-header ${headerClass}"><div class="date-info">📅 ${mKey}</div></div><div class="date-grid">`;
+                
+                items.forEach(item => {
+                    const itemAlert = app.getAlert(item.expiryDate);
+                    finalHtml += `
+                    <div class="card" style="${item.isExplore ? 'border: 2px dashed var(--primary);' : ''}">
+                        <div class="card-header">
+                            <span class="status-badge bg-${itemAlert === 'expired' ? 'exp' : 'safe'}">${itemAlert.toUpperCase()}</span>
+                            <img data-code="${item.code}" class="card-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+                        </div>
+                        <div class="card-body">
+                            <div class="brand">${item.brand}</div>
+                            <div class="name-en"><b>${item.nameEn}</b></div>
+                            <div class="name-ar">${item.nameAr || ''}</div>
+                            <div class="barcode-container"><svg class="barcode" jsbarcode-value="${item.code}" jsbarcode-width="1" jsbarcode-height="30" jsbarcode-displayValue="false"></svg></div>
+                            <div class="status-actions">
+                                <button class="st-btn found ${item.status === 'found' ? 'active' : ''}" onclick="app.update('${item.code}','${item.expiryDate}','found', ${item.isExplore || false})">${t.found}</button>
+                                <button class="st-btn missing ${item.status === 'not-found' ? 'active' : ''}" onclick="app.update('${item.code}','${item.expiryDate}','not-found', ${item.isExplore || false})">${t.missing}</button>
+                            </div>
+                        </div>
+                    </div>`;
+                });
+                finalHtml += `</div></div>`;
+            });
+
+            // إضافة مؤشر تحميل في النهاية لو لسه فيه داتا
+            if (app.fullFilteredList.length > limit) {
+                finalHtml += `<div id="loadMoreTrigger" style="text-align:center; padding:20px; color:var(--primary); font-weight:bold;">${t.loadMore}</div>`;
+            }
+
+            container.innerHTML = finalHtml;
+            document.querySelectorAll('.card-img').forEach(img => app.observer.observe(img));
+            try { JsBarcode(".barcode").init(); } catch (e) { }
+        },
+
+        loadNextPage: () => {
+            if (app.currentPage * app.displayLimit < app.fullFilteredList.length) {
+                app.currentPage++;
+                app.renderVisiblePart();
+            }
+        },
+
+        update: async (code, date, actionStatus, isExplore = false) => {
+            if (isExplore) {
+                const local = DB_MAP.get(String(code));
+                app.data.push({
+                    code, nameEn: local['Item Description'], nameAr: local['أسم المنتج'] || '',
+                    brand: local.Brand || 'OTHER', expiryDate: date, status: actionStatus
+                });
+                app.notify(app.i18n[app.language].added);
+            } else {
+                const item = app.data.find(i => String(i.code) === String(code) && i.expiryDate === date);
+                if (item) item.status = (item.status === actionStatus) ? 'pending' : actionStatus;
+            }
+            app.render(false); // تحديث بدون تصفير السكروول
+            fetch(`${WORKER_URL}/api/inventory/update`, { 
+                method: 'POST', body: JSON.stringify({ userId: app.userId, code, oldDate: date, status: actionStatus }) 
+            });
         },
 
         getAlert: (dateStr) => {
@@ -599,148 +692,31 @@ body.rtl .status-badge { right: auto; left: 10px; }
             return 'safe';
         },
 
-        render: () => {
-            const t = app.i18n[app.language];
-            const search = document.getElementById('search').value.toLowerCase().trim();
-            const fStatus = document.getElementById('status').value;
-            const fMonth = document.getElementById('month').value;
-            const fBrand = document.getElementById('brand').value;
-            const fCatA = document.getElementById('catA').value;
-            const fCatB = document.getElementById('catB').value;
-
-            document.getElementById('langBtn').innerText = t.langToggleBtn;
-            document.querySelectorAll('.stat-label')[0].innerText = t.total;
-            document.querySelectorAll('.stat-label')[1].innerText = t.found;
-            document.querySelectorAll('.stat-label')[2].innerText = t.missing;
-            document.querySelectorAll('.stat-label')[3].innerText = t.pending;
-            document.querySelectorAll('.stat-label')[4].innerText = t.expired;
-            document.getElementById('search').placeholder = t.search;
-            document.getElementById('syncStatus').innerText = t.sync;
-            document.querySelector('[onclick="app.logout()"]').innerText = t.logout;
-
-            let s = { total: 0, found: 0, missing: 0, pending: 0, exp: 0, warn: 0 };
-            app.data.forEach(i => {
-                const alert = app.getAlert(i.expiryDate);
-                s.total++;
-                if (i.status === 'found') s.found++;
-                else if (i.status === 'not-found') s.missing++;
-                else s.pending++;
-                if (alert === 'expired') s.exp++;
-                if (alert === 'warning') s.warn++;
-            });
-
-            document.getElementById('stTotal').innerText = s.total;
-            document.getElementById('stFound').innerText = s.found;
-            if (document.getElementById('stMissing')) document.getElementById('stMissing').innerText = s.missing;
-            if (document.getElementById('stPending')) document.getElementById('stPending').innerText = s.pending;
-            document.getElementById('stExpired').innerText = s.exp;
-
-            let filtered = app.data.filter(item => {
-                const alert = app.getAlert(item.expiryDate);
-                const m = new Date(item.expiryDate).toISOString().slice(0, 7);
-                const searchMatch = !search || String(item.nameEn).toLowerCase().includes(search) || String(item.nameAr).toLowerCase().includes(search) || String(item.code).includes(search);
-
-                if (!searchMatch) return false;
-                if (fStatus !== 'all' && item.status !== fStatus) return false;
-                if (fMonth !== 'all' && m !== fMonth) return false;
-                if (fBrand !== 'all' && item.brand !== fBrand) return false;
-                if (fCatA !== 'all' && item.catA !== fCatA) return false;
-                if (fCatB !== 'all' && item.catB !== fCatB) return false;
-
-                if (app.statFilter === 'found' && item.status !== 'found') return false;
-                if (app.statFilter === 'not-found' && item.status !== 'not-found') return false;
-                if (app.statFilter === 'pending' && item.status !== 'pending') return false;
-                if (app.statFilter === 'expired' && alert !== 'expired') return false;
-
-                return true;
-            });
-
-            app.currentView = filtered;
-            const container = document.getElementById('inventoryContainer');
-            if (!container) return;
-            container.innerHTML = filtered.length === 0 ? `<div style="text-align:center; padding:40px; color:#ccc;">${t.noData}</div>` : '';
-
-            const groupedData = {};
-            filtered.forEach(item => {
-                const dateKey = item.expiryDate.split('T')[0];
-                if (!groupedData[dateKey]) groupedData[dateKey] = [];
-                groupedData[dateKey].push(item);
-            });
-
-            Object.keys(groupedData).sort().forEach(date => {
-                const items = groupedData[date];
-                const alertType = app.getAlert(date);
-                let headerClass = alertType === 'expired' ? 'expired-header' : alertType === 'warning' ? 'warning-header' : 'safe-header';
-                let sectionHtml = `<div class="date-section" id="sec-${date}"><div class="date-header ${headerClass}"><div class="date-info"><span>📅 ${new Date(date).toLocaleDateString(app.language === 'ar' ? 'ar-EG' : 'en-GB', { month: 'long', year: 'numeric' })}</span></div><button class="btn btn-sm btn-danger" onclick="app.promptDeleteDateGroup('${date}')">${t.deleteGrp}</button></div><div class="date-grid">`;
-                
-                items.forEach(item => {
-                    sectionHtml += `
-                    <div class="card">
-                        <div class="card-header">
-                            <div class="card-tools"><button class="btn-icon" onclick="app.promptEdit('${item.code}', '${item.expiryDate}')">✏️</button></div>
-                            <span class="status-badge bg-${alertType === 'expired' ? 'exp' : 'safe'}">${alertType.toUpperCase()}</span>
-                            <img data-code="${item.code}" data-url="${item.dbImage || ''}" class="card-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
-                        </div>
-                        <div class="card-body">
-                            <div class="brand">${item.brand}</div>
-                            <div class="name-en" style="display: ${app.language === 'en' ? 'block' : 'none'}">${item.nameEn}</div>
-                            <div class="name-ar" style="display: ${app.language === 'ar' ? 'block' : 'none'}">${item.nameAr || item.nameEn}</div>
-                            <div class="barcode-container"><svg class="barcode" jsbarcode-value="${item.code}" jsbarcode-width="1" jsbarcode-height="30" jsbarcode-displayValue="false"></svg></div>
-                            <div class="meta-row"><span>#${item.code}</span></div>
-                            <div class="status-actions">
-                                <button class="st-btn found ${item.status === 'found' ? 'active' : ''}" onclick="app.update('${item.code}','${item.expiryDate}','found')">${t.found}</button>
-                                <button class="st-btn missing ${item.status === 'not-found' ? 'active' : ''}" onclick="app.update('${item.code}','${item.expiryDate}','not-found')">${t.missing}</button>
-                            </div>
-                        </div>
-                    </div>`;
-                });
-                container.innerHTML += sectionHtml + `</div></div>`;
-            });
-            document.querySelectorAll('.card-img').forEach(img => app.observer.observe(img));
-            try { JsBarcode(".barcode").init(); } catch (e) { }
-        },
-
         loadImage: async (img) => {
             const code = img.dataset.code;
-            if (img.dataset.url && img.dataset.url !== 'null') { img.src = img.dataset.url; }
+            const local = DB_MAP.get(String(code));
+            if (local && local.itemurl) { img.src = local.itemurl; }
             else {
                 try {
                     const res = await fetch(`${WORKER_URL}/api/product?code=${code}`);
                     const json = await res.json();
-                    img.src = json.success && json.image ? json.image : `https://placehold.co/400x300/f1f5f9/cbd5e1?text=${code}`;
+                    img.src = (json.success && json.image) ? json.image : `https://placehold.co/400x300/f1f5f9/cbd5e1?text=${code}`;
                 } catch(e) { img.src = `https://placehold.co/400x300/f1f5f9/cbd5e1?text=Error`; }
             }
             img.onload = () => img.classList.add('loaded');
         },
 
-        update: (code, date, actionStatus) => {
-            const item = app.data.find(i => String(i.code) === String(code) && i.expiryDate === date);
-            if (item) {
-                item.status = item.status === actionStatus ? 'pending' : actionStatus;
-                app.render();
-                fetch(`${WORKER_URL}/api/inventory/update`, { method: 'POST', body: JSON.stringify({ userId: app.userId, code, oldDate: date, status: item.status }) });
-            }
-        },
-
-        openModal: (id) => { const m = document.getElementById(id); m.style.display = 'flex'; setTimeout(() => m.classList.add('open'), 10); },
-        closeModal: (id) => { const m = document.getElementById(id); m.classList.remove('open'); setTimeout(() => m.style.display = 'none', 300); },
-        
-        promptDelete: (code, date) => {
-            app.target = { type: 'single', code, date };
-            const t = app.i18n[app.language];
-            document.getElementById('deleteMsg').innerText = `${t.delMsg} #${code}?`;
-            app.openModal('deleteModal');
-        },
-
-        confirmDelete: async () => {
-            app.closeModal('deleteModal');
-            if (app.target.type === 'single') app.data = app.data.filter(i => !(String(i.code) === String(app.target.code) && i.expiryDate === app.target.date));
-            app.render();
-            app.notify(app.language === 'ar' ? "تم الحذف" : "Deleted");
+        notify: (msg, type = 'success') => {
+            const box = document.getElementById('toast-box');
+            const t = document.createElement('div');
+            t.className = `toast show`;
+            t.style.borderLeft = `5px solid ${type === 'success' ? 'var(--success)' : 'var(--danger)'}`;
+            t.innerHTML = `<div>${msg}</div>`;
+            box.appendChild(t);
+            setTimeout(() => { t.remove(); }, 3000);
         }
     };
 
-    // تشغيل الـ init
     window.onload = () => app.init();
 </script>
 </body>
