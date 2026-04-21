@@ -468,22 +468,30 @@ header {
 
         i18n: {
             ar: {
+
                 total: "إجمالي الأصناف", found: "تم العثور", missing: "مفقودات", pending: "قيد الانتظار",
+
                 expired: "منتهي (+1)", nearExp: "قريب الانتهاء", search: "بحث بالاسم أو الكود...",
+
                 catA: "القسم الرئيسي", catB: "القسم الفرعي", brand: "البراند", month: "شهر الانتهاء",
+
                 status: "الحالة", reset: "إعادة ضبط", upload: "رفع ملف", export: "تصدير",
+
                 sync: "متصل • مزامنة", logout: "خروج", deleteGrp: "حذف المجموعة", noData: "لا توجد بيانات مطابقة",
+
                 langToggleBtn: "English 🌐", explore: "استكشاف المستخدمين", added: "تم النسخ لحسابك",
-                selectUsers: "اختر الصيادلة لعرض بياناتهم:", empty: "(فارغ)"
+
+                selectUsers: "اختر الصيدلية لعرض الاكواد:", empty: "(فارغ)"
+
             },
             en: {
                 total: "Total Items", found: "Found", missing: "Missing", pending: "Pending",
                 expired: "Expired (+1M)", nearExp: "Near Expiry", search: "Search name or code...",
-                catA: "Category A", catB: "Category B", brand: "Brand", month: "Expiry Month",
+                catA: "Category Level A", catB: "Category Level B", brand: "Brand", month: "Expiry Month",
                 status: "Status", reset: "Reset Filters", upload: "Upload Excel", export: "Export",
                 sync: "Online • Synced", logout: "Logout", deleteGrp: "Delete Group", noData: "No matching items found",
                 langToggleBtn: "العربية 🌐", explore: "Explore Users", added: "Copied to your account",
-                selectUsers: "Select pharmacists to view their data:", empty: "(Empty)"
+                selectUsers: "Select Pharmacies to view their data:", empty: "(Empty)"
             }
         },
 
@@ -546,7 +554,7 @@ header {
             } catch (e) { app.notify(e.message || "Login failed", "error"); }
         },
 
-        load: async () => {
+              load: async () => {
             try {
                 const res = await fetch(`${WORKER_URL}/api/inventory/load?userId=${app.userId}`);
                 const json = await res.json();
@@ -555,7 +563,9 @@ header {
                     return { ...p, 
                         nameEn: local ? local['Item Description'] : p.name, 
                         nameAr: local ? local['أسم المنتج'] : '',
-                        brand: local ? local.Brand : (p.brand || "OTHER")
+                        brand: local ? local.Brand : (p.brand || "OTHER"),
+                        catA: local ? local['Category Level A'] : 'Uncategorized',
+                        catB: local ? local['Category Level B'] : 'Uncategorized'
                     };
                 });
                 await app.loadAllUsersData(); 
@@ -589,7 +599,7 @@ header {
             app.render(false);
         },
 
-        render: (resetPagination = true) => {
+              render: (resetPagination = true) => {
             if (resetPagination) app.currentPage = 1;
             const t = app.i18n[app.language];
             const search = document.getElementById('search').value.toLowerCase().trim();
@@ -607,7 +617,16 @@ header {
                 })
                 .map(it => {
                     const local = DB_MAP.get(String(it.code));
-                    return { ...it, nameEn: local ? local['Item Description'] : 'Unknown', nameAr: local ? local['أسم المنتج'] : '', brand: local ? local.Brand : 'OTHER', isExplore: true, ownerId: it.userId };
+                    return { 
+                        ...it, 
+                        nameEn: local ? local['Item Description'] : 'Unknown', 
+                        nameAr: local ? local['أسم المنتج'] : '', 
+                        brand: local ? local.Brand : 'OTHER', 
+                        catA: local ? local['Category Level A'] : 'Uncategorized',
+                        catB: local ? local['Category Level B'] : 'Uncategorized',
+                        isExplore: true, 
+                        ownerId: it.userId 
+                    };
                 }) : 
                 app.data;
 
@@ -634,7 +653,7 @@ header {
                     const hasData = app.exploreData.some(it => it.userId === id);
                     return `
                         <div class="user-chip ${isSelected ? 'selected' : ''}" onclick="app.toggleUserSelection('${id}')">
-                            👤 Pharmacist: ${id} ${!hasData ? t.empty : ''}
+                            ⚕️ Pharmacy: ${id} ${!hasData ? t.empty : ''}
                         </div>`;
                 }).join('');
 
@@ -655,20 +674,37 @@ header {
                 const header = document.getElementById('exploreHeaderSection');
                 if(header) header.style.display = 'none';
             }
-
             app.fullFilteredList = baseData.filter(item => {
                 const alert = app.getAlert(item.expiryDate);
+                
+                // 1. فلتر الكروت العلوية
                 if (app.statFilter === 'found' && item.status !== 'found') return false;
                 if (app.statFilter === 'not-found' && item.status !== 'not-found') return false;
                 if (app.statFilter === 'pending' && item.status !== 'pending') return false;
                 if (app.statFilter === 'expired' && (alert !== 'expired' || item.status !== 'pending')) return false;
 
+                // 2. فلتر الشهور
                 const monthFilter = document.getElementById('month')?.value;
                 if (monthFilter && monthFilter !== 'all' && !item.expiryDate.startsWith(monthFilter)) return false;
 
+                // 3. فلتر القسم الرئيسي (الجديد)
+                const catAFilter = document.getElementById('catA')?.value;
+                if (catAFilter && catAFilter !== 'all' && item.catA !== catAFilter) return false;
+
+                // 4. فلتر القسم الفرعي (الجديد)
+                const catBFilter = document.getElementById('catB')?.value;
+                if (catBFilter && catBFilter !== 'all' && item.catB !== catBFilter) return false;
+
+                // 5. فلتر البراند (الجديد)
+                const brandFilter = document.getElementById('brand')?.value;
+                if (brandFilter && brandFilter !== 'all' && item.brand !== brandFilter) return false;
+
+                // 6. فلتر الحالة من القائمة المنسدلة (الجديد)
+                const statusFilter = document.getElementById('status')?.value;
+                if (statusFilter && statusFilter !== 'all' && item.status !== statusFilter) return false;
+
                 return true;
             });
-
             if (search) {
                 app.fullFilteredList = app.fullFilteredList.filter(item => 
                     String(item.nameEn).toLowerCase().includes(search) || String(item.code).includes(search)
@@ -731,8 +767,11 @@ header {
                             ${item.isExplore ? `<span class="status-badge" style="background:var(--primary)">BY: ${item.ownerId}</span>` : ''}
                             <img data-code="${item.code}" class="card-img">
                         </div>
-                        <div class="card-body">
-                            <div class="brand">${item.brand}</div>
+                                               <div class="card-body">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 4px;">
+                                <div class="brand">${item.brand}</div>
+                                <div style="font-size: 11px; font-weight: bold; color: var(--text-light); background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">#${item.code}</div>
+                            </div>
                             <div class="name-en"><b>${item.nameEn}</b></div>
                             <div class="name-ar">${item.nameAr}</div>
                             <div class="status-actions">
@@ -760,14 +799,16 @@ header {
                         return; // وقف العملية عشان مايتكررش
                     }
 
-                    app.data.push({
+                                      app.data.push({
                         code: String(code),
                         expiryDate: date,
                         status: actionStatus,
                         name: local['Item Description'] || '',
                         nameEn: local['Item Description'] || '',
                         nameAr: local['أسم المنتج'] || '',
-                        brand: local.Brand || 'OTHER'
+                        brand: local.Brand || 'OTHER',
+                        catA: local['Category Level A'] || 'Uncategorized',
+                        catB: local['Category Level B'] || 'Uncategorized'
                     });
 
                     await fetch(`${WORKER_URL}/api/inventory/upsert`, {
@@ -842,15 +883,21 @@ header {
             setTimeout(() => { t.remove(); }, 3000);
         },
 
-        initFilters: () => {
+              initFilters: () => {
             const t = app.i18n[app.language];
-            const brands = [...new Set(app.data.map(i => i.brand))].sort();
-            const catAs = [...new Set(app.data.map(i => i.catA))].sort();
+            
+            // استخراج البراندات والأقسام والشهور بدون قيم فارغة
+            const brands = [...new Set(app.data.map(i => i.brand))].filter(Boolean).sort();
+            const catAs = [...new Set(app.data.map(i => i.catA))].filter(Boolean).sort();
+            const months = [...new Set(app.data.map(i => i.expiryDate ? i.expiryDate.slice(0, 7) : null))].filter(Boolean).sort();
+            
+            // ملء القوائم
             app.fillSelect('brand', brands, t.brand);
             app.fillSelect('catA', catAs, t.catA);
+            app.fillSelect('month', months, t.month); // هذا السطر كان ناقصاً لملء الشهور
+            
             app.handleCatAChange();
         },
-
         fillSelect: (id, arr, label) => {
             const el = document.getElementById(id);
             if(el) el.innerHTML = `<option value="all">All ${label}</option>` + arr.map(v => `<option value="${v}">${v}</option>`).join('');
