@@ -426,7 +426,7 @@ header {
     const app = {
         data: [], 
         userId: null,
-        statFilter: 'pending',
+        statFilter: 'all', // القيمة الافتراضية
         target: null,
         currentView: [],
         language: 'ar',
@@ -468,6 +468,7 @@ header {
                 const data2 = await res2.json();
                 LOCAL_DB = [...data1, ...data2];
                 DB_MAP = new Map(LOCAL_DB.map(i => [String(i.Code), i]));
+                console.log("Database Loaded:", LOCAL_DB.length);
             } catch (error) { console.error("Error loading JSON:", error); }
         },
 
@@ -592,7 +593,7 @@ header {
             const fCatB = document.getElementById('catB').value;
             const myCodes = new Set(app.data.map(i => String(i.code)));
 
-            // 1. حساب الإحصائيات (دائماً على كامل البيانات)
+            // 1. تحديث العدادات (على كامل الداتا)
             let s = { total: 0, found: 0, missing: 0, pending: 0, exp: 0 };
             app.data.forEach(i => {
                 const alert = app.getAlert(i.expiryDate);
@@ -617,8 +618,7 @@ header {
             if (app.statFilter === 'explore') {
                 app.fullFilteredList = exploreItems.map(item => ({
                     code: item.Code, nameEn: item['Item Description'], nameAr: item['أسم المنتج'] || '',
-                    brand: item.Brand || 'OTHER', catA: item['Category Level A'], catB: item['Category Level B'],
-                    expiryDate: "2026-12-01", status: 'pending', isExplore: true
+                    brand: item.Brand || 'OTHER', expiryDate: "2026-12-01", status: 'pending', isExplore: true
                 }));
             } else {
                 app.fullFilteredList = app.data.filter(item => {
@@ -635,7 +635,6 @@ header {
                     if (fBrand !== 'all' && item.brand !== fBrand) return false;
                     if (fCatA !== 'all' && item.catA !== fCatA) return false;
                     if (fCatB !== 'all' && item.catB !== fCatB) return false;
-                    
                     return true;
                 });
             }
@@ -647,6 +646,26 @@ header {
                     String(item.code).includes(search)
                 );
             }
+
+            // 3. رسم بوكسات الشهور (بناءً على القائمة المفلترة كاملة)
+            const navContainer = document.getElementById('monthNav');
+            navContainer.innerHTML = '';
+            const uniqueMonths = [...new Set(app.fullFilteredList.map(it => it.expiryDate.slice(0, 7)))].sort();
+            
+            if (uniqueMonths.length > 0) {
+                navContainer.style.display = 'flex';
+                uniqueMonths.forEach(mKey => {
+                    const monthItems = app.fullFilteredList.filter(it => it.expiryDate.startsWith(mKey));
+                    const alert = app.getAlert(mKey + "-01");
+                    const dateObj = new Date(mKey + "-01");
+                    const displayMonth = dateObj.toLocaleDateString(app.language === 'ar' ? 'ar-EG' : 'en-GB', { month: 'short', year: '2-digit' });
+                    const chip = document.createElement('div');
+                    chip.className = `month-chip ${alert === 'expired' ? 'st-expired' : alert === 'warning' ? 'st-warning' : 'st-safe'}`;
+                    chip.innerHTML = `<div class="m-date">${displayMonth}</div><div class="m-count">${monthItems.length} items</div>`;
+                    chip.onclick = () => document.getElementById(`sec-${mKey}`)?.scrollIntoView({ behavior: 'smooth' });
+                    navContainer.appendChild(chip);
+                });
+            } else { navContainer.style.display = 'none'; }
 
             app.renderVisiblePart();
         },
@@ -673,13 +692,13 @@ header {
             Object.keys(groupedByMonth).sort().forEach(mKey => {
                 const alert = app.getAlert(mKey + "-01");
                 let headerClass = alert === 'expired' ? 'expired-header' : alert === 'warning' ? 'warning-header' : 'safe-header';
-                finalHtml += `<div class="date-section"><div class="date-header ${headerClass}"><div class="date-info">📅 ${mKey}</div></div><div class="date-grid">`;
+                finalHtml += `<div class="date-section" id="sec-${mKey}"><div class="date-header ${headerClass}"><div class="date-info">📅 ${mKey}</div></div><div class="date-grid">`;
                 groupedByMonth[mKey].forEach(item => {
                     const itemAlert = app.getAlert(item.expiryDate);
                     finalHtml += `
                     <div class="card" style="${item.isExplore ? 'border: 2px dashed var(--primary);' : ''}">
                         <div class="card-header">
-                            <span class="status-badge bg-${itemAlert === 'expired' ? 'exp' : 'safe'}">${itemAlert.toUpperCase()}</span>
+                            <span class="status-badge bg-${itemAlert === 'expired' ? 'exp' : itemAlert === 'warning' ? 'warn' : 'safe'}">${itemAlert.toUpperCase()}</span>
                             <img data-code="${item.code}" class="card-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
                         </div>
                         <div class="card-body">
@@ -687,6 +706,7 @@ header {
                             <div class="name-en"><b>${item.nameEn}</b></div>
                             <div class="name-ar">${item.nameAr || ''}</div>
                             <div class="barcode-container"><svg class="barcode" jsbarcode-value="${item.code}" jsbarcode-width="1" jsbarcode-height="30" jsbarcode-displayValue="false"></svg></div>
+                            <div class="meta-row"><span>#${item.code}</span></div>
                             <div class="status-actions">
                                 <button class="st-btn found ${item.status === 'found' ? 'active' : ''}" onclick="app.update('${item.code}','${item.expiryDate}','found', ${item.isExplore || false})">${t.found}</button>
                                 <button class="st-btn missing ${item.status === 'not-found' ? 'active' : ''}" onclick="app.update('${item.code}','${item.expiryDate}','not-found', ${item.isExplore || false})">${t.missing}</button>
@@ -753,6 +773,19 @@ header {
                 } catch(e) { img.src = `https://placehold.co/400x300/f1f5f9/cbd5e1?text=Error`; }
             }
             img.onload = () => img.classList.add('loaded');
+        },
+
+        resetFilters: () => {
+            document.getElementById('search').value = '';
+            document.getElementById('catA').value = 'all';
+            document.getElementById('brand').value = 'all';
+            document.getElementById('month').value = 'all';
+            document.getElementById('status').value = 'all';
+            app.statFilter = 'all';
+            document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+            document.querySelector('[onclick*="all"]').classList.add('active');
+            app.handleCatAChange();
+            app.notify(app.i18n[app.language].reset);
         },
 
         notify: (msg, type = 'success') => {
