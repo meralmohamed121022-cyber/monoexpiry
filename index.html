@@ -892,9 +892,17 @@ const ONLINE_WORKER_URL = "https://online.meralmohamed121022.workers.dev";
             } catch (e) { console.error("Explore Data Error", e); }
         },
 
-        init: async () => {
+init: async () => {
             await app.loadExternalDB();
-            const uid = localStorage.getItem('inv_uid');
+            
+            // 💡 التعديل هنا: بنشيك على رقم الصيدلية من المنصة الرئيسية أولاً
+            // 'pharmacy_number' هو الاسم المستخدم في كود المنصة الرئيسية
+            const mainPlatformId = localStorage.getItem('pharmacy_number');
+            const localAppId = localStorage.getItem('inv_uid');
+            
+            // لو المنصة الرئيسية فيها رقم، الأولوية ليها، غير كدة يستخدم القديم
+            const uid = mainPlatformId || localAppId;
+
             document.body.classList.toggle('rtl', app.language === 'ar');
 
             window.addEventListener('scroll', () => {
@@ -904,14 +912,19 @@ const ONLINE_WORKER_URL = "https://online.meralmohamed121022.workers.dev";
             });
 
             if (uid) {
+                // وضع الرقم في خانة الـ ID وعمل Login تلقائي
                 document.getElementById('userId').value = uid;
+                
+                // حفظه محلياً برضه عشان التزامن
+                localStorage.setItem('inv_uid', uid);
+                
                 app.login();
             }
+
             app.observer = new IntersectionObserver((entries) => {
                 entries.forEach(e => { if (e.isIntersecting) { app.loadImage(e.target); app.observer.unobserve(e.target); } });
             }, { rootMargin: "200px" });
         },
-
     // 🔴 ضع دالة notify الجديدة هنا بين الدوال
     notify: (msg, type = 'success') => {
         let box = document.getElementById('toast-box');
@@ -960,7 +973,7 @@ const ONLINE_WORKER_URL = "https://online.meralmohamed121022.workers.dev";
             setTimeout(() => t.remove(), 400); 
         }, 4000);
     },
-        login: async () => {
+login: async () => {
             const id = String(document.getElementById('userId').value || '').trim();
             if (!id) return app.notify("Enter user ID", "error");
             try {
@@ -971,15 +984,19 @@ const ONLINE_WORKER_URL = "https://online.meralmohamed121022.workers.dev";
                 });
                 const json = await res.json();
                 if (!res.ok || !json.success) throw new Error(json.error || "Login failed");
+                
                 app.userId = id;
-                localStorage.setItem('inv_uid', id);
+
+                // 🔐 التعديل هنا: الحفظ في الـ LocalStorage للمنصتين لضمان التزامن الكامل
+                localStorage.setItem('inv_uid', id);          // خاص بصفحة الـ Expiry
+                localStorage.setItem('pharmacy_number', id); // خاص بالمنصة الرئيسية (MONO SYSTEM)
+
                 document.getElementById('loginScreen').style.display = 'none';
                 document.getElementById('mainApp').style.display = 'block';
                 document.getElementById('userBadge').innerText = `👤 User: ${json.displayName || id}`;
                 app.load();
             } catch (e) { app.notify(e.message || "Login failed", "error"); }
         },
-
               load: async () => {
             try {
                 const res = await fetch(`${WORKER_URL}/api/inventory/load?userId=${app.userId}`);
