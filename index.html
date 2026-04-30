@@ -1643,74 +1643,69 @@ login: async () => {
                 app.notify("فشل قراءة الملف", "error");
             }
         },
-                confirmUpload: async () => {
-            // إظهار شاشة التحميل (عشان ميضغطش مرتين بالغلط)
-            const loader = document.getElementById('globalLoader');
-            if (loader) loader.style.display = 'flex';
+confirmUpload: async () => {
+    const loader = document.getElementById('globalLoader');
+    
+    // 1. إغلاق نافذة البريفيو فوراً عشان تشوف التطورات والرسائل
+    document.getElementById('uploadModal').style.display = 'none';
+    
+    // 2. إظهار شاشة التحميل
+    if (loader) loader.style.display = 'flex';
 
-            try {
-                // لو مفيش داتا خالص، اقفل وطلع رسالة خطأ
-                if (!app.pendingUploadRows.length) {
-                    if (loader) loader.style.display = 'none';
-                    app.notify("لا توجد بيانات للحفظ", "error");
-                    return;
-                }
+    try {
+        if (!app.pendingUploadRows.length) {
+            if (loader) loader.style.display = 'none';
+            app.notify("لا توجد بيانات للحفظ", "error");
+            return;
+        }
 
-                // حفظ إجمالي الأصناف اللي في الملف
-                const totalInFile = app.pendingUploadRows.length;
+        const totalInFile = app.pendingUploadRows.length;
+        const chunkSize = 100; 
+        let totalAdded = 0;
 
-                // إرسال للوركر
-                const res = await fetch(`${WORKER_URL}/api/inventory/sync`, {
-                    method: 'POST',
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        userId: app.userId,
-                        newProducts: app.pendingUploadRows
-                    })
-                });
+        // 3. مسح حقل الملف فوراً لمنع أي تعليق في المتصفح
+        const fileInput = document.getElementById('file');
+        if (fileInput) fileInput.value = '';
 
-                const json = await res.json();
-                
-                // لو الوركر رجّع خطأ (500)
-                if (!res.ok || !json.success) {
-                    throw new Error(json.error || "فشل المزامنة مع السيرفر");
-                }
+        for (let i = 0; i < totalInFile; i += chunkSize) {
+            const chunk = app.pendingUploadRows.slice(i, i + chunkSize);
+            
+            const res = await fetch(`${WORKER_URL}/api/inventory/sync`, {
+                method: 'POST',
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    userId: app.userId,
+                    newProducts: chunk
+                })
+            });
 
-                // 🔴 تفريغ حقل الملف فوراً عشان نقدر نرفع نفس الملف تاني عادي جداً
-                document.getElementById('file').value = '';
-                
-                // تفريغ البيانات من الذاكرة وإغلاق النافذة
-                app.pendingUploadRows = [];
-                document.getElementById('uploadModal').style.display = 'none';
-                
-                // إخفاء شاشة التحميل
-                if (loader) loader.style.display = 'none';
+            // لو حصل Failed to fetch هنا، هيروح للـ catch
+            if (!res.ok) throw new Error("Server Error");
 
-                // 🔴 تفصيل حالة الملف المرفوع للمستخدم:
-                const added = json.addedCount || 0;
-                
-                if (added > 0) {
-                    app.notify(`✅ تم بنجاح! تمت إضافة ${added} صنف جديد من أصل ${totalInFile}.`, "success");
-                } else {
-                    app.notify(`⚠️ لا يوجد جديد! جميع أصناف الملف (${totalInFile}) موجودة لديك مسبقاً بنفس التواريخ.`, "warning");
-                }
+            const json = await res.json();
+            totalAdded += (json.addedCount || 0);
+        }
 
-                // تحديث الواجهة بالكروت الجديدة
-                await app.load();
+        // 4. تفريغ الذاكرة المؤقتة بعد النجاح
+        app.pendingUploadRows = [];
+        
+        if (loader) loader.style.display = 'none';
 
-            } catch (e) {
-                // إخفاء التحميل
-                const loader = document.getElementById('globalLoader');
-                if (loader) loader.style.display = 'none';
-                
-                // إرجاع الـ input فاضي
-                document.getElementById('file').value = '';
-                
-                // عرض رسالة الخطأ الجانبية
-                app.notify(`❌ حدث خطأ أثناء الرفع: ${e.message}`, "error");
-                console.error("Upload Error:", e);
-            }
-        },
+        if (totalAdded > 0) {
+            app.notify(`✅ تم بنجاح! إضافة ${totalAdded} صنف جديد.`, "success");
+        } else {
+            app.notify(`⚠️ جميع الأصناف موجودة مسبقاً.`, "warning");
+        }
+
+        await app.load();
+
+    } catch (e) {
+        if (loader) loader.style.display = 'none';
+        app.pendingUploadRows = []; // تصفير الداتا حتى في حالة الخطأ لمنع التكرار
+        app.notify(`❌ فشل الاتصال بالسيرفر أو الملف مكرر بالكامل`, "error");
+        console.error("Upload Error:", e);
+    }
+},        
         cancelUpload: () => {
             // تصفير البيانات المخزنة مؤقتاً
             app.pendingUploadRows = [];
