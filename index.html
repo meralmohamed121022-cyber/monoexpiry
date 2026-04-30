@@ -893,53 +893,42 @@ const ONLINE_WORKER_URL = "https://online.meralmohamed121022.workers.dev";
         },
 
 init: async () => {
+    // 1. تحميل قاعدة البيانات المحلية أولاً
     await app.loadExternalDB();
     
-    // 1. لقط رقم الصيدلية من الرابط مع التأكد من النوع
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlPh = urlParams.get('ph');
-    
-    // 2. فحص التخزين المحلي كخطة بديلة
-    const mainPlatformId = localStorage.getItem('pharmacy_number');
-    const localAppId = localStorage.getItem('inv_uid');
-    
-    // تحديد الـ UID النهائي
-    const uid = urlPh || mainPlatformId || localAppId;
-
+    // 2. ضبط اتجاه الصفحة (RTL لـ العربية)
     document.body.classList.toggle('rtl', app.language === 'ar');
 
+    // 3. مراقب التمرير لتحميل المزيد من الأصناف (Lazy Loading)
     window.addEventListener('scroll', () => {
         if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 500) {
             app.loadNextPage();
         }
     });
 
-    // 💡 التعديل الجوهري: إضافة تأخير بسيط (Delay) لضمان جاهزية الـ DOM
-    if (uid && uid !== 'null' && uid !== 'undefined') {
-        console.log("Pharmacy ID Detected:", uid);
-        
-        // وضع الرقم في الحقل فوراً
+    // 4. محاولة أخيرة: لو الرقم متخزن فعلياً في الصفحة دي من قبل كدة
+    const localId = localStorage.getItem('inv_uid');
+    if (localId && localId !== 'null') {
         const inputField = document.getElementById('userId');
-        if (inputField) inputField.value = uid;
-
-        // تخزينه لضمان استمرار الجلسة
-        localStorage.setItem('inv_uid', uid);
-        localStorage.setItem('pharmacy_number', uid);
-
-        // تنفيذ الدخول بعد 500ms لضمان استقرار الصفحة
-        setTimeout(() => {
-            console.log("Attempting Auto-Login for:", uid);
-            app.login();
-        }, 500);
-    } else {
-        console.warn("No Pharmacy ID found in URL or Storage");
+        if (inputField) inputField.value = localId;
+        
+        // دخول تلقائي سريع لو البيانات موجودة محلياً
+        setTimeout(() => app.login(), 300);
     }
 
+    // 5. مراقب الصور (Intersection Observer)
     app.observer = new IntersectionObserver((entries) => {
-        entries.forEach(e => { if (e.isIntersecting) { app.loadImage(e.target); app.observer.unobserve(e.target); } });
+        entries.forEach(e => { 
+            if (e.isIntersecting) { 
+                app.loadImage(e.target); 
+                app.observer.unobserve(e.target); 
+            } 
+        });
     }, { rootMargin: "200px" });
-},        
-        // 🔴 ضع دالة notify الجديدة هنا بين الدوال
+    
+    console.log("Expiry System Initialized. Waiting for messages...");
+},
+// 🔴 ضع دالة notify الجديدة هنا بين الدوال
     notify: (msg, type = 'success') => {
         let box = document.getElementById('toast-box');
         if (!box) {
