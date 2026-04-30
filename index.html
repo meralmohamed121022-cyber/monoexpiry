@@ -435,35 +435,38 @@ header {
             <button class="btn btn-ghost" onclick="app.toggleLanguage()" id="langBtn">English 🌐</button>
         </div>
     </header>
-
-       <div class="stats-grid">
-        <!-- أزلنا كلمة active من هنا -->
-        <div class="stat-card" onclick="app.setStatFilter('all', this)">
-            <span class="stat-value" style="color:var(--primary)" id="stTotal">0</span>
-            <span class="stat-label">Total Items</span>
-        </div>
-
-        <div class="stat-card" onclick="app.setStatFilter('found', this)">
-            <span class="stat-value" style="color:var(--success)" id="stFound">0</span>
-            <span class="stat-label">Found</span>
-        </div>
-
-        <div class="stat-card" onclick="app.setStatFilter('not-found', this)">
-            <span class="stat-value" style="color:var(--danger)" id="stMissing">0</span>
-            <span class="stat-label">Missing</span>
-        </div>
-
-        <!-- 👈 أضفنا كلمة active هنا ليظهر الكارت مفعل افتراضياً -->
-        <div class="stat-card active" onclick="app.setStatFilter('pending', this)">
-            <span class="stat-value" style="color:var(--primary)" id="stPending">0</span>
-            <span class="stat-label">Pending</span>
-        </div>
-
-        <div class="stat-card" onclick="app.setStatFilter('expired', this)">
-            <span class="stat-value" style="color:var(--danger)" id="stExpired">0</span>
-            <span class="stat-label">Expired</span>
-        </div>
+<div class="stats-grid">
+    <div class="stat-card" onclick="app.setStatFilter('all', this)">
+        <span class="stat-value" style="color:var(--primary)" id="stTotal">0</span>
+        <span class="stat-label">Total Items</span>
     </div>
+
+    <div class="stat-card" onclick="app.setStatFilter('found', this)">
+        <span class="stat-value" style="color:var(--success)" id="stFound">0</span>
+        <span class="stat-label">Found</span>
+    </div>
+
+    <div class="stat-card" onclick="app.setStatFilter('not-found', this)">
+        <span class="stat-value" style="color:var(--danger)" id="stMissing">0</span>
+        <span class="stat-label">Missing</span>
+    </div>
+
+    <div class="stat-card active" onclick="app.setStatFilter('pending', this)">
+        <span class="stat-value" style="color:var(--primary)" id="stPending">0</span>
+        <span class="stat-label">Pending</span>
+    </div>
+
+    <div class="stat-card" onclick="app.setStatFilter('expired', this)">
+        <span class="stat-value" style="color:var(--danger)" id="stExpired">0</span>
+        <span class="stat-label">Expired</span>
+    </div>
+
+    <!-- كارت استكشاف الكل المعدل -->
+   
+</div>
+
+<!-- تأكد أن هذا الجزء مخفي تماماً في الكود عندك -->
+<div id="exploreUsersContainer" style="display: none !important;"></div>
 
         <!-- 👈 كارت الاستكشاف تحته صندوق قائمة الصيدليات (Horizontal Scroll) -->
        <div style="margin-bottom: 25px;">
@@ -905,7 +908,16 @@ init: async () => {
             app.loadNextPage();
         }
     });
-
+// دالة لتوليد لون ثابت بناءً على رقم الصيدلية
+app.getPharmacyColor = (id) => {
+    let hash = 0;
+    const str = String(id);
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    // HSL تعطي ألواناً زاهية ومتناسقة
+    return `hsl(${Math.abs(hash) % 360}, 70%, 45%)`; 
+};
     // 4. محاولة أخيرة: لو الرقم متخزن فعلياً في الصفحة دي من قبل كدة
     const localId = localStorage.getItem('inv_uid');
     if (localId && localId !== 'null') {
@@ -1025,19 +1037,44 @@ login: async () => {
             location.reload(); 
         },
 
-        setStatFilter: (type, el) => {
-            document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
-            if (el) el.classList.add('active');
+      setStatFilter: (type, el) => {
+    // إزالة التحديد من جميع الكروت وإضافته للكارت المضغطوط عليه
+    document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+    if (el) el.classList.add('active');
 
-            if (type === 'explore') {
-                app.exploreMode = true;
-                app.statFilter = 'all'; 
-            } else {
-                app.exploreMode = false;
-                app.statFilter = type;
-            }
-            app.render(true);
-        },
+    if (type === 'explore') {
+        app.exploreMode = true;
+        app.statFilter = 'all'; 
+
+        // 💡 التعديل الجوهري: تحديد كل الصيدليات المسجلة أوتوماتيكياً
+        // دي بتخلي السيستم يجمع الداتا من كل اليوزرز المسجلين في app.allRegisteredUsers
+        app.selectedUsers = new Set(app.allRegisteredUsers);
+
+        // إخفاء حاوية الأرقام ومربع البحث تماماً لأننا مش محتاجين نختار يدوياً
+        const container = document.getElementById('exploreUsersContainer');
+        if (container) {
+            container.style.display = 'none';
+        }
+
+        app.notify("جاري عرض جميع أصناف الصيدليات المسجلة (All PH Expiry)", "success");
+    } else {
+        // العودة للوضع العادي (صيدليتك فقط)
+        app.exploreMode = false;
+        app.statFilter = type;
+        
+        // تصفير قائمة المستخدمين المختارين لضمان عدم التداخل
+        app.selectedUsers = new Set();
+        
+        // التأكد من إبقاء الحاوية مخفية
+        const container = document.getElementById('exploreUsersContainer');
+        if (container) {
+            container.style.display = 'none';
+        }
+    }
+    
+    // إعادة ريندر الصفحة بالفلتر الجديد
+    app.render(true);
+},
 
         toggleUserSelection: (userId) => {
             if (app.selectedUsers.has(userId)) app.selectedUsers.delete(userId);
@@ -1045,16 +1082,17 @@ login: async () => {
             app.render(false);
         },
 
-        render: (resetPagination = true) => {
+render: (resetPagination = true) => {
             if (resetPagination) app.currentPage = 1;
             const t = app.i18n[app.language];
             const search = document.getElementById('search').value.toLowerCase().trim();
 
-            // 🔥 فلترة الأصناف في وضع الاستكشاف 🔥
+            // 🔥 فلترة الأصناف الذكية 🔥
             let baseData = app.exploreMode ? 
                 app.exploreData
+                // 1. التحديد التلقائي لجميع الصيدليات المسجلة (All PH Expiry)
                 .filter(it => app.selectedUsers.has(it.userId))
-                // إخفاء الأصناف اللي متسجلة عندك مسبقاً بنفس التاريخ
+                // 2. [منع التكرار] إخفاء الأصناف اللي متسجلة عندك مسبقاً بنفس الكود وتاريخ الانتهاء
                 .filter(it => {
                     const alreadyHaveIt = app.data.some(myItem => 
                         String(myItem.code) === String(it.code) && myItem.expiryDate === it.expiryDate
@@ -1076,13 +1114,17 @@ login: async () => {
                 }) : 
                 app.data;
 
+            // حساب الإحصائيات بناءً على البيانات المفلترة
             let s = { total: 0, found: 0, missing: 0, pending: 0, exp: 0 };
             baseData.forEach(i => {
                 const alert = app.getAlert(i.expiryDate);
                 s.total++;
                 if (i.status === 'found') s.found++;
                 else if (i.status === 'not-found') s.missing++;
-                else { s.pending++; if (alert === 'expired') s.exp++; }
+                else { 
+                    s.pending++; 
+                    if (alert === 'expired') s.exp++; 
+                }
             });
 
             document.getElementById('stTotal').innerText = s.total;
@@ -1091,77 +1133,11 @@ login: async () => {
             document.getElementById('stPending').innerText = s.pending;
             document.getElementById('stExpired').innerText = s.exp;
 
-            // 🟢 التعديل السحري: التحكم في صندوق الاستكشاف الأفقي والفرز الذكي
+            // 🟢 إدارة واجهة الاستكشاف (مخفية الآن كما طلبت)
             const exploreContainer = document.getElementById('exploreUsersContainer');
-            
-            if (app.exploreMode && exploreContainer) {
-                exploreContainer.style.display = 'block'; // إظهار الصندوق
-                
-                // جلب قيمة البحث الحالية من صندوق الصيدليات (لو اليوزر بيكتب حاجة)
-                const searchPharmInput = document.getElementById('searchPharmacies');
-                const pharmSearchTerm = searchPharmInput ? searchPharmInput.value.toLowerCase().trim() : '';
-
-                // 🔴 الترتيب الذكي: جعل الصيدليات المختارة تظهر في البداية أولاً
-                const sortedUsers = [...app.allRegisteredUsers].sort((a, b) => {
-                    const aSelected = app.selectedUsers.has(a);
-                    const bSelected = app.selectedUsers.has(b);
-                    if (aSelected && !bSelected) return -1;
-                    if (!aSelected && bSelected) return 1;
-                    return 0; // الحفاظ على ترتيب الباقي كما هو
-                });
-
-                // بناء أزرار الصيدليات بعد الفرز وتطبيق البحث الفوري عليها
-                const usersHtml = sortedUsers.map(id => {
-                    const isSelected = app.selectedUsers.has(id);
-                    const hasData = app.exploreData.some(it => it.userId === id);
-                    
-                    // إذا كان رقم الصيدلية لا يطابق ما هو مكتوب في مربع البحث، نخفيه
-                    // (يمكنك إضافة شرط: `|| isSelected` إذا أردت أن تظل المختارة ظاهرة حتى أثناء البحث)
-                    const isVisible = String(id).toLowerCase().includes(pharmSearchTerm) ? 'flex' : 'none';
-
-                    return `
-                        <div class="user-chip ${isSelected ? 'selected' : ''}" 
-                             data-id="${id}"
-                             onclick="app.toggleUserSelection('${id}')"
-                             style="
-                                display: ${isVisible};
-                                align-items: center;
-                                flex-shrink: 0; 
-                                padding: 8px 18px; 
-                                border-radius: 20px; 
-                                font-size: 13px; 
-                                font-weight: 600; 
-                                cursor: pointer; 
-                                transition: 0.2s; 
-                                border: 1.5px solid ${isSelected ? 'var(--primary)' : '#E2E8F0'}; 
-                                background: ${isSelected ? 'var(--primary)' : '#fff'}; 
-                                color: ${isSelected ? '#fff' : 'var(--text-main)'}; 
-                                box-shadow: ${isSelected ? '0 4px 10px rgba(79,70,229,0.3)' : 'none'};
-                             ">
-                            ${isSelected ? '✅' : '🏪'} ${id} ${!hasData ? '<span style="opacity:0.6; font-size:11px; margin-left:5px;">' + t.empty + '</span>' : ''}
-                        </div>`;
-                }).join('');
-
-                const usersGrid = document.getElementById('usersGrid');
-                if (usersGrid) {
-                    usersGrid.innerHTML = usersHtml;
-                }
-
-                // ربط الفلترة المباشرة بمربع البحث بحيث لا يعيد تحميل الصفحة بالكامل عند الكتابة
-                if (searchPharmInput && !searchPharmInput.hasAttribute('data-listened')) {
-                    searchPharmInput.setAttribute('data-listened', 'true');
-                    searchPharmInput.addEventListener('input', function(e) {
-                        const term = e.target.value.toLowerCase().trim();
-                        // إخفاء وإظهار الأزرار أفقياً حسب النص المكتوب
-                        document.querySelectorAll('#usersGrid .user-chip').forEach(chip => {
-                            const pharmacyId = chip.getAttribute('data-id').toLowerCase();
-                            chip.style.display = pharmacyId.includes(term) ? 'flex' : 'none';
-                        });
-                    });
-                }
-
-            } else {
-                if (exploreContainer) exploreContainer.style.display = 'none';
+            if (exploreContainer) {
+                // إخفاء الحاوية تماماً في وضع الاستكشاف الجديد All PH Expiry
+                exploreContainer.style.display = 'none'; 
             }
 
             // --- الفلاتر المتعددة (Tom Select) ---
@@ -1192,6 +1168,7 @@ login: async () => {
             if (search) {
                 app.fullFilteredList = app.fullFilteredList.filter(item => 
                     String(item.nameEn).toLowerCase().includes(search) || 
+                    String(item.nameAr).includes(search) ||
                     String(item.code).includes(search)
                 );
             }
@@ -1217,12 +1194,21 @@ login: async () => {
             }
 
             app.renderVisiblePart();
-        },
-        
-        renderVisiblePart: () => {
+        },        
+renderVisiblePart: () => {
             const t = app.i18n[app.language];
             const resultContainer = document.getElementById('inventoryContainer');
             if (!resultContainer) return;
+
+            // دالة مساعدة لتوليد لون فريد وثابت لكل صيدلية بناءً على الـ ID
+            const getPhColor = (id) => {
+                let hash = 0;
+                const str = String(id);
+                for (let i = 0; i < str.length; i++) {
+                    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+                }
+                return `hsl(${Math.abs(hash) % 360}, 70%, 45%)`;
+            };
 
             const limit = app.currentPage * app.displayLimit;
             const visibleList = app.fullFilteredList.slice(0, limit);
@@ -1250,22 +1236,27 @@ login: async () => {
                 finalHtml += `<div class="date-section" id="sec-${mKey}"><div class="date-header ${headerClass}">📅 ${mKey}</div><div class="date-grid">`;
                 
                 grouped[mKey].forEach(item => {
+                    // تحديد اللون: لو استكشاف ياخد لون الصيدلية، لو صيدليتي ياخد اللون الأساسي
+                    const phColor = item.isExplore ? getPhColor(item.ownerId) : 'var(--primary)';
+                    const cardStyle = item.isExplore 
+                        ? `border: 2.5px solid ${phColor}; background: #fdfdfd; box-shadow: 0 4px 15px ${phColor}20;` 
+                        : '';
+
                     finalHtml += `
-                    <div class="card" style="${item.isExplore ? 'border: 2px solid var(--primary); background: #fdfdfd' : ''}">
+                    <div class="card" style="${cardStyle}">
                         <div class="card-header">
-                            ${item.isExplore ? `<span class="status-badge" style="background:var(--primary)">BY: ${item.ownerId}</span>` : ''}
+                            <!-- نقطة ملونة صغيرة لتمييز المصدر بصرياً بدون أرقام -->
+                            ${item.isExplore ? `<div style="position:absolute; top:10px; right:10px; width:12px; height:12px; background:${phColor}; border-radius:50%; border:2px solid white; box-shadow:0 0 5px ${phColor}; z-index:10;"></div>` : ''}
                             <img data-code="${item.code}" class="card-img">
                         </div>
                         <div class="card-body">
-                            <!-- تعديل منطقة البراند والكود لإضافة الباركود -->
                             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                                    <div class="brand">${item.brand}</div>
+                                    <div class="brand" style="color:${phColor}; font-weight:800;">${item.brand}</div>
                                     <div style="font-size:11px; font-weight:bold; color:var(--text-light); background:#f1f5f9; padding:2px 6px; border-radius:4px;">
                                         #${item.code}
                                     </div>
                                 </div>
-                                <!-- حاوية الباركود -->
                                 <div style="display:flex; align-items:center; justify-content:center; background:#fff; border:1px dashed #E2E8F0; padding:6px; border-radius:8px;">
                                     <svg class="barcode-svg" data-barcode="${item.code}"></svg>
                                 </div>
@@ -1275,8 +1266,15 @@ login: async () => {
                             <div class="name-ar">${item.nameAr}</div>
                             
                             <div class="status-actions">
-                                <button class="st-btn found ${item.status === 'found' ? 'active' : ''}" onclick="app.update('${item.code}','${item.expiryDate}','found', ${item.isExplore || false}, '${item.ownerId || ''}')">${t.found}</button>
-                                <button class="st-btn missing ${item.status === 'not-found' ? 'active' : ''}" onclick="app.update('${item.code}','${item.expiryDate}','not-found', ${item.isExplore || false}, '${item.ownerId || ''}')">${t.missing}</button>
+                                <button class="st-btn found ${item.status === 'found' ? 'active' : ''}" 
+                                        style="${item.status === 'found' ? `background:${phColor} !important; border-color:${phColor} !important; color:white !important;` : ''}"
+                                        onclick="app.update('${item.code}','${item.expiryDate}','found', ${item.isExplore || false}, '${item.ownerId || ''}')">
+                                    ${t.found}
+                                </button>
+                                <button class="st-btn missing ${item.status === 'not-found' ? 'active' : ''}" 
+                                        onclick="app.update('${item.code}','${item.expiryDate}','not-found', ${item.isExplore || false}, '${item.ownerId || ''}')">
+                                    ${t.missing}
+                                </button>
                             </div>
                         </div>
                     </div>`;
@@ -1285,22 +1283,20 @@ login: async () => {
             });
             resultContainer.innerHTML = finalHtml;
             
-            // 1. مراقبة الصور للـ Lazy Load
             document.querySelectorAll('.card-img').forEach(img => app.observer.observe(img));
 
-            // 2. توليد الباركود لكل كارت باستخدام مكتبة JsBarcode
             if (typeof JsBarcode !== 'undefined') {
                 document.querySelectorAll('.barcode-svg').forEach(svg => {
                     const bCode = svg.getAttribute('data-barcode');
                     if (bCode) {
                         try {
                             JsBarcode(svg, bCode, {
-                                format: "CODE128",     // صيغة الباركود القياسية
-                                width: 1.5,            // عرض الخطوط مناسب للكارت
-                                height: 35,            // ارتفاع الباركود
-                                displayValue: false,   // إخفاء الأرقام (مكتوبة فوقه بالفعل)
-                                margin: 0,             // بدون مسافات إضافية
-                                lineColor: "#1E293B",  // لون الباركود
+                                format: "CODE128",
+                                width: 1.5,
+                                height: 35,
+                                displayValue: false,
+                                margin: 0,
+                                lineColor: "#1E293B",
                                 background: "transparent"
                             });
                         } catch (e) {
@@ -1308,8 +1304,6 @@ login: async () => {
                         }
                     }
                 });
-            } else {
-                console.warn("JsBarcode library is not loaded.");
             }
         },
         update: async (code, date, actionStatus, isExplore = false, ownerId = null) => {
