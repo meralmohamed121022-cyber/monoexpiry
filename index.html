@@ -464,14 +464,53 @@ header {
         </div>
     </div>
 
-    <!-- 👈 فصلنا كارت الاستكشاف ووضعناه بالأسفل بعرض الشاشة ولون بنفسجي مميز -->
-    <div style="margin-bottom: 25px;">
+        <!-- 👈 كارت الاستكشاف تحته صندوق قائمة الصيدليات (Horizontal Scroll) -->
+       <div style="margin-bottom: 25px;">
         <div class="stat-card" onclick="app.setStatFilter('explore', this)" style="border: 2px solid #8B5CF6; background: #F5F3FF; display: flex; justify-content: center; align-items: center; gap: 20px; padding: 15px;">
            <span class="stat-label" style="color:#6D28D9; font-size:1.1rem;">🌍 استكشاف الصيدليات (Explore Pharmacies) ⚕️</span>
             <span class="stat-value" style="color:#7C3AED; margin:0;" id="stExplore">0</span>
         </div>
+        
+        <!-- صندوق قائمة الصيدليات يظهر تحته مباشرة (سلايد يمين وشمال) -->
+        <div id="exploreUsersContainer" style="display: none; margin-top: 15px; padding: 15px; background: #fff; border-radius: 16px; border: 1px dashed #C4B5FD; box-shadow: 0 4px 10px rgba(0,0,0,0.03); width: 100%; overflow: hidden;">
+            
+            <!-- السطر العلوي: عنوان البوكس + مربع البحث الجديد -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                <div style="font-size: 13px; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 5px;">
+                    👥 <span id="lblSelectUsers">اختر الصيدلية لعرض الأصناف:</span>
+                </div>
+                
+                <!-- 🔴 مربع البحث المخصص لأرقام الصيدليات (Live Search) -->
+                <div style="position: relative; flex-grow: 1; max-width: 300px; min-width: 200px;">
+                    <input type="text" id="searchPharmacies" placeholder="🔍 ابحث برقم الصيدلية..." 
+                        style="width: 100%; padding: 10px 14px; border: 1.5px solid #E2E8F0; border-radius: 10px; font-size: 13px; outline: none; transition: 0.3s; background: #F8FAFC;"
+                        onfocus="this.style.borderColor='var(--primary)'; this.style.background='#fff';" 
+                        onblur="this.style.borderColor='#E2E8F0'; this.style.background='#F8FAFC';">
+                </div>
+            </div>
+            
+            <!-- الكونتينر الخاص بالسكرول الأفقي للأزرار -->
+            <div id="usersGrid" style="
+                display: flex; 
+                flex-wrap: nowrap; 
+                gap: 12px; 
+                overflow-x: auto; 
+                padding-bottom: 10px;
+                -webkit-overflow-scrolling: touch;
+            ">
+                <!-- الأزرار ستُرسم هنا عبر الجافاسكريبت -->
+            </div>
+        </div>
     </div>
+
+    <!-- إضافة ستايل بسيط لتحسين شكل شريط السحب (Scrollbar) للبوكس ده فقط -->
+    <style>
+        #usersGrid::-webkit-scrollbar { height: 6px; }
+        #usersGrid::-webkit-scrollbar-thumb { background: #C4B5FD; border-radius: 3px; }
+        #usersGrid::-webkit-scrollbar-track { background: transparent; }
+    </style>
     <div class="controls-area">
+        
       <div class="filters-row">
     <div class="filter-box">
         <span class="filter-label">🔍 Search</span>
@@ -771,12 +810,12 @@ const ONLINE_WORKER_URL = "https://online.meralmohamed121022.workers.dev";
             app.render(false);
         },
 
-              render: (resetPagination = true) => {
+        render: (resetPagination = true) => {
             if (resetPagination) app.currentPage = 1;
             const t = app.i18n[app.language];
             const search = document.getElementById('search').value.toLowerCase().trim();
 
-            // 🔥 التعديل الأهم: فلترة الأصناف في وضع الاستكشاف 🔥
+            // 🔥 فلترة الأصناف في وضع الاستكشاف 🔥
             let baseData = app.exploreMode ? 
                 app.exploreData
                 .filter(it => app.selectedUsers.has(it.userId))
@@ -817,71 +856,104 @@ const ONLINE_WORKER_URL = "https://online.meralmohamed121022.workers.dev";
             document.getElementById('stPending').innerText = s.pending;
             document.getElementById('stExpired').innerText = s.exp;
 
-            const container = document.getElementById('inventoryContainer');
+            // 🟢 التعديل السحري: التحكم في صندوق الاستكشاف الأفقي والفرز الذكي
+            const exploreContainer = document.getElementById('exploreUsersContainer');
+            
+            if (app.exploreMode && exploreContainer) {
+                exploreContainer.style.display = 'block'; // إظهار الصندوق
+                
+                // جلب قيمة البحث الحالية من صندوق الصيدليات (لو اليوزر بيكتب حاجة)
+                const searchPharmInput = document.getElementById('searchPharmacies');
+                const pharmSearchTerm = searchPharmInput ? searchPharmInput.value.toLowerCase().trim() : '';
 
-            if (app.exploreMode) {
-                const usersHtml = app.allRegisteredUsers.map(id => {
+                // 🔴 الترتيب الذكي: جعل الصيدليات المختارة تظهر في البداية أولاً
+                const sortedUsers = [...app.allRegisteredUsers].sort((a, b) => {
+                    const aSelected = app.selectedUsers.has(a);
+                    const bSelected = app.selectedUsers.has(b);
+                    if (aSelected && !bSelected) return -1;
+                    if (!aSelected && bSelected) return 1;
+                    return 0; // الحفاظ على ترتيب الباقي كما هو
+                });
+
+                // بناء أزرار الصيدليات بعد الفرز وتطبيق البحث الفوري عليها
+                const usersHtml = sortedUsers.map(id => {
                     const isSelected = app.selectedUsers.has(id);
                     const hasData = app.exploreData.some(it => it.userId === id);
+                    
+                    // إذا كان رقم الصيدلية لا يطابق ما هو مكتوب في مربع البحث، نخفيه
+                    // (يمكنك إضافة شرط: `|| isSelected` إذا أردت أن تظل المختارة ظاهرة حتى أثناء البحث)
+                    const isVisible = String(id).toLowerCase().includes(pharmSearchTerm) ? 'flex' : 'none';
+
                     return `
-                        <div class="user-chip ${isSelected ? 'selected' : ''}" onclick="app.toggleUserSelection('${id}')">
-                            ⚕️ Pharmacy: ${id} ${!hasData ? t.empty : ''}
+                        <div class="user-chip ${isSelected ? 'selected' : ''}" 
+                             data-id="${id}"
+                             onclick="app.toggleUserSelection('${id}')"
+                             style="
+                                display: ${isVisible};
+                                align-items: center;
+                                flex-shrink: 0; 
+                                padding: 8px 18px; 
+                                border-radius: 20px; 
+                                font-size: 13px; 
+                                font-weight: 600; 
+                                cursor: pointer; 
+                                transition: 0.2s; 
+                                border: 1.5px solid ${isSelected ? 'var(--primary)' : '#E2E8F0'}; 
+                                background: ${isSelected ? 'var(--primary)' : '#fff'}; 
+                                color: ${isSelected ? '#fff' : 'var(--text-main)'}; 
+                                box-shadow: ${isSelected ? '0 4px 10px rgba(79,70,229,0.3)' : 'none'};
+                             ">
+                            ${isSelected ? '✅' : '🏪'} ${id} ${!hasData ? '<span style="opacity:0.6; font-size:11px; margin-left:5px;">' + t.empty + '</span>' : ''}
                         </div>`;
                 }).join('');
 
-                const usersHeader = document.getElementById('exploreHeaderSection');
-                if(!usersHeader) {
-                    const div = document.createElement('div');
-                    div.id = 'exploreHeaderSection';
-                    div.className = 'explore-header';
-                    container.parentNode.insertBefore(div, container);
+                const usersGrid = document.getElementById('usersGrid');
+                if (usersGrid) {
+                    usersGrid.innerHTML = usersHtml;
                 }
-                document.getElementById('exploreHeaderSection').innerHTML = `
-                    <h3>${t.selectUsers}</h3>
-                    <div class="user-selector-grid">${usersHtml}</div>
-                `;
-                document.getElementById('exploreHeaderSection').style.display = 'block';
+
+                // ربط الفلترة المباشرة بمربع البحث بحيث لا يعيد تحميل الصفحة بالكامل عند الكتابة
+                if (searchPharmInput && !searchPharmInput.hasAttribute('data-listened')) {
+                    searchPharmInput.setAttribute('data-listened', 'true');
+                    searchPharmInput.addEventListener('input', function(e) {
+                        const term = e.target.value.toLowerCase().trim();
+                        // إخفاء وإظهار الأزرار أفقياً حسب النص المكتوب
+                        document.querySelectorAll('#usersGrid .user-chip').forEach(chip => {
+                            const pharmacyId = chip.getAttribute('data-id').toLowerCase();
+                            chip.style.display = pharmacyId.includes(term) ? 'flex' : 'none';
+                        });
+                    });
+                }
 
             } else {
-                const header = document.getElementById('exploreHeaderSection');
-                if(header) header.style.display = 'none';
+                if (exploreContainer) exploreContainer.style.display = 'none';
             }
-                        app.fullFilteredList = baseData.filter(item => {
+
+            // --- الفلاتر المتعددة (Tom Select) ---
+            app.fullFilteredList = baseData.filter(item => {
                 const alert = app.getAlert(item.expiryDate);
                 
-                // 1. فلتر الكروت العلوية (الثابت كما هو)
                 if (app.statFilter === 'found' && item.status !== 'found') return false;
                 if (app.statFilter === 'not-found' && item.status !== 'not-found') return false;
                 if (app.statFilter === 'pending' && item.status !== 'pending') return false;
                 if (app.statFilter === 'expired' && (alert !== 'expired' || item.status !== 'pending')) return false;
 
-                // --- جلب المصفوفات من الفلاتر المتعددة (Tom Select) ---
-                // إذا لم توجد قيم، سترجع المصفوفة فارغة [] مما يعني عرض "الكل"
                 const monthFilters = app.tomSelectInstances['month']?.getValue() || [];
                 const catAFilters  = app.tomSelectInstances['catA']?.getValue() || [];
                 const catBFilters  = app.tomSelectInstances['catB']?.getValue() || [];
                 const brandFilters = app.tomSelectInstances['brand']?.getValue() || [];
                 const statusFilters = app.tomSelectInstances['status']?.getValue() || [];
 
-                // 2. فلتر الشهور المتعدد
                 if (monthFilters.length > 0 && !monthFilters.includes(item.expiryDate.slice(0, 7))) return false;
-
-                // 3. فلتر القسم الرئيسي المتعدد
                 if (catAFilters.length > 0 && !catAFilters.includes(item.catA)) return false;
-
-                // 4. فلتر القسم الفرعي المتعدد
                 if (catBFilters.length > 0 && !catBFilters.includes(item.catB)) return false;
-
-                // 5. فلتر البراند المتعدد
                 if (brandFilters.length > 0 && !brandFilters.includes(item.brand)) return false;
-
-                // 6. فلتر الحالة المتعدد من القائمة المنسدلة
                 if (statusFilters.length > 0 && !statusFilters.includes(item.status)) return false;
 
                 return true;
             });
 
-            // فلتر البحث النصي (الاسم أو الكود)
+            // فلتر البحث النصي الرئيسي (اسم المنتج والكود)
             if (search) {
                 app.fullFilteredList = app.fullFilteredList.filter(item => 
                     String(item.nameEn).toLowerCase().includes(search) || 
@@ -889,7 +961,7 @@ const ONLINE_WORKER_URL = "https://online.meralmohamed121022.workers.dev";
                 );
             }
 
-            // تحديث شريط الشهور العلوي (النافيجيشن)
+            // تحديث شريط الشهور العلوي
             const navContainer = document.getElementById('monthNav');
             navContainer.innerHTML = '';
             const uniqueMonths = [...new Set(app.fullFilteredList.map(it => it.expiryDate.slice(0, 7)))].sort();
@@ -911,6 +983,7 @@ const ONLINE_WORKER_URL = "https://online.meralmohamed121022.workers.dev";
 
             app.renderVisiblePart();
         },
+        
         renderVisiblePart: () => {
             const t = app.i18n[app.language];
             const resultContainer = document.getElementById('inventoryContainer');
