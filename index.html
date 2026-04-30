@@ -895,13 +895,16 @@ const ONLINE_WORKER_URL = "https://online.meralmohamed121022.workers.dev";
 init: async () => {
             await app.loadExternalDB();
             
-            // 💡 التعديل هنا: بنشيك على رقم الصيدلية من المنصة الرئيسية أولاً
-            // 'pharmacy_number' هو الاسم المستخدم في كود المنصة الرئيسية
+            // 🎣 الخطوة الأهم: لقط رقم الصيدلية من الرابط (URL Parameters)
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlPh = urlParams.get('ph'); // بياخد القيمة اللي بعد ?ph=
+            
+            // بنشيك برضه على الـ LocalStorage للاحتياط
             const mainPlatformId = localStorage.getItem('pharmacy_number');
             const localAppId = localStorage.getItem('inv_uid');
             
-            // لو المنصة الرئيسية فيها رقم، الأولوية ليها، غير كدة يستخدم القديم
-            const uid = mainPlatformId || localAppId;
+            // الترتيب الذكي للأولوية: الرابط أولاً -> المنصة الرئيسية -> المخزن المحلي
+            const uid = urlPh || mainPlatformId || localAppId;
 
             document.body.classList.toggle('rtl', app.language === 'ar');
 
@@ -915,8 +918,9 @@ init: async () => {
                 // وضع الرقم في خانة الـ ID وعمل Login تلقائي
                 document.getElementById('userId').value = uid;
                 
-                // حفظه محلياً برضه عشان التزامن
+                // حفظه محلياً عشان السيستم يفضل فاكره حتى لو حدثت الصفحة
                 localStorage.setItem('inv_uid', uid);
+                localStorage.setItem('pharmacy_number', uid);
                 
                 app.login();
             }
@@ -925,7 +929,8 @@ init: async () => {
                 entries.forEach(e => { if (e.isIntersecting) { app.loadImage(e.target); app.observer.unobserve(e.target); } });
             }, { rootMargin: "200px" });
         },
-    // 🔴 ضع دالة notify الجديدة هنا بين الدوال
+        
+        // 🔴 ضع دالة notify الجديدة هنا بين الدوال
     notify: (msg, type = 'success') => {
         let box = document.getElementById('toast-box');
         if (!box) {
