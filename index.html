@@ -893,43 +893,52 @@ const ONLINE_WORKER_URL = "https://online.meralmohamed121022.workers.dev";
         },
 
 init: async () => {
-            await app.loadExternalDB();
-            
-            // 🎣 الخطوة الأهم: لقط رقم الصيدلية من الرابط (URL Parameters)
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlPh = urlParams.get('ph'); // بياخد القيمة اللي بعد ?ph=
-            
-            // بنشيك برضه على الـ LocalStorage للاحتياط
-            const mainPlatformId = localStorage.getItem('pharmacy_number');
-            const localAppId = localStorage.getItem('inv_uid');
-            
-            // الترتيب الذكي للأولوية: الرابط أولاً -> المنصة الرئيسية -> المخزن المحلي
-            const uid = urlPh || mainPlatformId || localAppId;
+    await app.loadExternalDB();
+    
+    // 1. لقط رقم الصيدلية من الرابط مع التأكد من النوع
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlPh = urlParams.get('ph');
+    
+    // 2. فحص التخزين المحلي كخطة بديلة
+    const mainPlatformId = localStorage.getItem('pharmacy_number');
+    const localAppId = localStorage.getItem('inv_uid');
+    
+    // تحديد الـ UID النهائي
+    const uid = urlPh || mainPlatformId || localAppId;
 
-            document.body.classList.toggle('rtl', app.language === 'ar');
+    document.body.classList.toggle('rtl', app.language === 'ar');
 
-            window.addEventListener('scroll', () => {
-                if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 500) {
-                    app.loadNextPage();
-                }
-            });
+    window.addEventListener('scroll', () => {
+        if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 500) {
+            app.loadNextPage();
+        }
+    });
 
-            if (uid) {
-                // وضع الرقم في خانة الـ ID وعمل Login تلقائي
-                document.getElementById('userId').value = uid;
-                
-                // حفظه محلياً عشان السيستم يفضل فاكره حتى لو حدثت الصفحة
-                localStorage.setItem('inv_uid', uid);
-                localStorage.setItem('pharmacy_number', uid);
-                
-                app.login();
-            }
-
-            app.observer = new IntersectionObserver((entries) => {
-                entries.forEach(e => { if (e.isIntersecting) { app.loadImage(e.target); app.observer.unobserve(e.target); } });
-            }, { rootMargin: "200px" });
-        },
+    // 💡 التعديل الجوهري: إضافة تأخير بسيط (Delay) لضمان جاهزية الـ DOM
+    if (uid && uid !== 'null' && uid !== 'undefined') {
+        console.log("Pharmacy ID Detected:", uid);
         
+        // وضع الرقم في الحقل فوراً
+        const inputField = document.getElementById('userId');
+        if (inputField) inputField.value = uid;
+
+        // تخزينه لضمان استمرار الجلسة
+        localStorage.setItem('inv_uid', uid);
+        localStorage.setItem('pharmacy_number', uid);
+
+        // تنفيذ الدخول بعد 500ms لضمان استقرار الصفحة
+        setTimeout(() => {
+            console.log("Attempting Auto-Login for:", uid);
+            app.login();
+        }, 500);
+    } else {
+        console.warn("No Pharmacy ID found in URL or Storage");
+    }
+
+    app.observer = new IntersectionObserver((entries) => {
+        entries.forEach(e => { if (e.isIntersecting) { app.loadImage(e.target); app.observer.unobserve(e.target); } });
+    }, { rootMargin: "200px" });
+},        
         // 🔴 ضع دالة notify الجديدة هنا بين الدوال
     notify: (msg, type = 'success') => {
         let box = document.getElementById('toast-box');
