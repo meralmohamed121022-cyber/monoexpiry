@@ -542,29 +542,243 @@ header {
     </div>
 </div>
 
-        <div class="action-row">
-            <div class="bulk-actions">
-                <button class="btn btn-reset" onclick="app.resetFilters()">
-                    🔄 Reset Filters
+            <!-- لوحة التحكم بالبيانات (Data Hub Panel) -->
+        <div class="data-hub-panel">
+            
+            <!-- قسم: زر التصفير (Reset) في الأعلى ليكون خفيفاً -->
+                      <!-- قسم: زر التصفير (Reset) بتصميم CSS Art -->
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 15px;">
+                <button class="btn-reset-art" onclick="app.resetFilters()">
+                    <span class="reset-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="1 4 1 10 7 10"></polyline>
+                            <polyline points="23 20 23 14 17 14"></polyline>
+                            <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
+                        </svg>
+                    </span>
+                    <span class="reset-text">إعادة ضبط الفلاتر</span>
                 </button>
             </div>
-            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+
+            <!-- قسم: رفع البيانات (IMPORT DATA) -->
+            <div class="hub-card">
+                <div class="hub-card-title">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    IMPORT DATA
+                </div>
+                
                 <input type="file" id="file" hidden accept=".xlsx,.csv" onchange="app.handleUpload(event)">
-                <button class="btn btn-primary" onclick="document.getElementById('file').click()">
-                    📤 Upload Excel
-                </button>
-                <button class="btn btn-ghost" onclick="app.export()">📥 Export</button>
+                
+                <div class="upload-dropzone" onclick="document.getElementById('file').click()">
+                    <div class="dropzone-icon">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    </div>
+                    <div class="dropzone-text">CLICK TO IMPORT EXCEL</div>
+                </div>
             </div>
-        </div>
 
-        <div class="danger-zone">
-            <div class="danger-zone-title">⚠️ DANGER ZONE</div>
-            <button class="btn btn-ghost" style="color:var(--danger); border-color:var(--danger);" onclick="app.promptClearAll()">
-                💣 Clear All Database
-            </button>
-        </div>
-    </div>
+            <!-- قسم: تصدير البيانات (EXPORT DATA) -->
+            <div class="hub-card">
+                <div class="hub-card-title">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    EXPORT DATA
+                </div>
+                
+                <div class="export-grid">
+                    <button class="export-btn btn-excel" onclick="app.export()">EXCEL</button>
+                    <!-- يمكنك ربط هذين الزرين بدوال أخرى مستقبلاً إذا أردت تصدير JSON أو Text -->
+                    
+                </div>
+            </div>
 
+            <!-- قسم: مسح البيانات (DANGER ZONE) -->
+            <div class="hub-card danger-card">
+                <div class="hub-card-title" style="color: #DC2626;">
+                    <span style="font-size: 16px; margin-right: 5px;">⚠️</span> DANGER ZONE
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; padding-top: 5px;">
+                    <div style="color: #991B1B; font-size: 13px; font-weight: 600;">
+                        احذر، مسح قاعدة البيانات لا يمكن التراجع عنه أبداً.
+                    </div>
+                    <button class="danger-btn-art" onclick="app.promptClearAll()">
+                        💣 Clear All Database
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div> <!-- نهاية controls-area -->
+
+    <!-- 🎨 CSS Art المطابق للصورة تماماً -->
+    <style>
+            /* 🔄 زر إعادة ضبط الفلاتر (CSS Art & 3D Effect) */
+        .btn-reset-art {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: linear-gradient(135deg, #F1F5F9 0%, #E2E8F0 100%);
+            color: #475569;
+            border: 2px solid #CBD5E1;
+            padding: 10px 20px;
+            border-radius: 50px; /* حواف دائرية بالكامل كبسولة */
+            font-size: 13px;
+            font-weight: 800;
+            font-family: inherit;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #CBD5E1, 0 8px 15px rgba(0,0,0,0.05); /* تأثير 3D */
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn-reset-art:active {
+            transform: translateY(4px); /* ضغطة حقيقية */
+            box-shadow: 0 0 0 #CBD5E1, 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .btn-reset-art:hover {
+            background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
+            border-color: #C7D2FE;
+            color: #4F46E5;
+            box-shadow: 0 4px 0 #C7D2FE, 0 8px 15px rgba(79, 70, 229, 0.15);
+        }
+
+        .reset-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.5s ease;
+        }
+
+        /* دوران الأيقونة عند التمرير (Hover) */
+        .btn-reset-art:hover .reset-icon {
+            transform: rotate(-180deg);
+            color: #4F46E5;
+        }
+        .data-hub-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+            margin-top: 30px;
+            padding-top: 25px;
+            border-top: 1.5px solid #F1F5F9;
+        }
+
+        /* الكروت الأساسية (Import / Export / Danger) */
+        .hub-card {
+            background: #FFFFFF;
+            border-radius: 12px;
+            border: 1px solid #E2E8F0;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+            transition: 0.3s;
+        }
+        .hub-card:hover { box-shadow: 0 8px 25px rgba(0,0,0,0.05); }
+
+        .hub-card-title {
+            font-size: 13px;
+            font-weight: 800;
+            color: #1E293B;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* 🟡 منطقة الرفع (Dropzone) تشبه الصورة بالضبط */
+        .upload-dropzone {
+            background: #FFFBEB; /* لون أصفر خفيف */
+            border: 2px dashed #F59E0B; /* خط متقطع برتقالي */
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+        .upload-dropzone:hover {
+            background: #FEF3C7;
+            border-color: #D97706;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(245, 158, 11, 0.15);
+        }
+        .dropzone-icon {
+            color: #F59E0B;
+            transition: transform 0.3s;
+        }
+        .upload-dropzone:hover .dropzone-icon {
+            transform: translateY(-5px);
+        }
+        .dropzone-text {
+            color: #D97706;
+            font-weight: 800;
+            font-size: 15px;
+            letter-spacing: 1px;
+        }
+
+        /* 🟢 أزرار التصدير العريضة (Export Grid) */
+        .export-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+        }
+        .export-btn {
+            padding: 16px 20px;
+            border-radius: 10px;
+            border: none;
+            color: white;
+            font-weight: 800;
+            font-size: 13px;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .export-btn:hover {
+            transform: translateY(-3px);
+        }
+        /* الألوان مطابقة للصورة */
+        .btn-excel { background: #10B981; box-shadow: 0 6px 15px rgba(16, 185, 129, 0.25); }
+        .btn-excel:hover { background: #059669; box-shadow: 0 8px 20px rgba(16, 185, 129, 0.35); }
+        
+        .btn-json { background: #06B6D4; box-shadow: 0 6px 15px rgba(6, 182, 212, 0.25); }
+        .btn-json:hover { background: #0891B2; box-shadow: 0 8px 20px rgba(6, 182, 212, 0.35); }
+        
+        .btn-text { background: #F59E0B; box-shadow: 0 6px 15px rgba(245, 158, 11, 0.25); }
+        .btn-text:hover { background: #D97706; box-shadow: 0 8px 20px rgba(245, 158, 11, 0.35); }
+
+        /* 🔴 منطقة الخطر (Danger Zone) */
+        .danger-card {
+            background: #FEF2F2;
+            border-color: #FECACA;
+        }
+        .danger-btn-art {
+            background: white;
+            color: #DC2626;
+            border: 2px solid #FECACA;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 800;
+            font-size: 13px;
+            cursor: pointer;
+            transition: 0.3s;
+            box-shadow: 0 4px 10px rgba(220, 38, 38, 0.1);
+        }
+        .danger-btn-art:hover {
+            background: #DC2626;
+            color: white;
+            border-color: #DC2626;
+            transform: scale(1.02);
+            box-shadow: 0 6px 15px rgba(220, 38, 38, 0.3);
+        }
+    </style>
     <div id="monthNav" class="month-nav-container" style="display:none"></div>
 
     <div id="inventoryContainer"></div>
