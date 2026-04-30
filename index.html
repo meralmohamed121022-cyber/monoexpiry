@@ -1216,8 +1216,10 @@ const ONLINE_WORKER_URL = "https://online.meralmohamed121022.workers.dev";
             app.render(true);
         },
         // Excel Upload Functions
-        excelDateToISO(value) {
+              excelDateToISO(value) {
             if (value == null || value === '') return null;
+            
+            // 1. إذا كان التاريخ رقم إكسيل (Serial Number)
             if (typeof value === 'number') {
                 const parsed = XLSX.SSF.parse_date_code(value);
                 if (!parsed) return null;
@@ -1225,13 +1227,35 @@ const ONLINE_WORKER_URL = "https://online.meralmohamed121022.workers.dev";
                 const dd = String(parsed.d).padStart(2, '0');
                 return `${parsed.y}-${mm}-${dd}`;
             }
+            
+            // 2. إذا كان كائن Date حقيقي
             if (value instanceof Date && !isNaN(value)) {
                 return value.toISOString().slice(0, 10);
             }
-            const str = String(value).trim();
+            
+            let str = String(value).trim();
+            
+            // التخلص من الوقت إذا كان موجوداً (مثل: 12:00:00 AM)
+            str = str.split(' ')[0];
+
+            // 3. إذا كان بصيغة ISO مسبقاً YYYY-MM-DD
             if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
+            // 4. قراءة التواريخ المكتوبة بصيغة DD/MM/YYYY أو DD-MM-YYYY
+            // نبحث عن نمط: (يوم/شهر/سنة)
+            const ukDateMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+            if (ukDateMatch) {
+                const day = ukDateMatch[1].padStart(2, '0');
+                const month = ukDateMatch[2].padStart(2, '0');
+                const year = ukDateMatch[3];
+                // إرجاعها بصيغة YYYY-MM-DD الصحيحة للبرمجة
+                return `${year}-${month}-${day}`; 
+            }
+
+            // 5. محاولة أخيرة باستخدام المتصفح (Fallback)
             const d = new Date(str);
             if (!isNaN(d)) return d.toISOString().slice(0, 10);
+            
             return null;
         },
 
@@ -1257,6 +1281,14 @@ const ONLINE_WORKER_URL = "https://online.meralmohamed121022.workers.dev";
                     return;
                 }
 
+                // دالة مساعدة لتحويل YYYY-MM-DD إلى اسم شهر (مثلاً: يوليو 2026) للبريفيو
+                const getMonthName = (isoString) => {
+                    if (!isoString) return '-';
+                    const [year, month] = isoString.split('-');
+                    const dateObj = new Date(year, parseInt(month) - 1, 1);
+                    return dateObj.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' });
+                };
+
                 const parsed = rows.map(row => {
                     const code = app.findColumn(row, ['code', 'item code', 'barcode', 'كود', 'الكود', 'الصنف']);
                     const expiryRaw = app.findColumn(row, ['expiry', 'expiry date', 'exp', 'date', 'تاريخ الانتهاء', 'انتهاء', 'تاريخ']);
@@ -1267,7 +1299,8 @@ const ONLINE_WORKER_URL = "https://online.meralmohamed121022.workers.dev";
                         code: String(code || '').trim(),
                         name: String(name || '').trim(),
                         brand: String(brand || '').trim(),
-                        expiryDate: app.excelDateToISO(expiryRaw)
+                        // استخدام دالتنا المعدلة التي تفهم اليوم والشهر صح
+                        expiryDate: app.excelDateToISO(expiryRaw) 
                     };
                 }).filter(item => item.code && item.expiryDate);
 
@@ -1282,13 +1315,19 @@ const ONLINE_WORKER_URL = "https://online.meralmohamed121022.workers.dev";
                 const minDate = dates[0];
                 const maxDate = dates[dates.length - 1];
                 const sample = parsed[0];
+                
+                // التأكد إذا كان هناك أي منتج ينتهي في شهر 1 (يناير)
                 const hasJanuary = parsed.some(x => x.expiryDate.slice(5, 7) === '01');
 
                 document.getElementById('uTotal').innerText = parsed.length;
-                document.getElementById('uMinDate').innerText = minDate;
-                document.getElementById('uMaxDate').innerText = maxDate;
+                
+                // عرض التواريخ كأسماء شهور واضحة (مثلاً: مارس 2026) بدلاً من أرقام فقط
+                document.getElementById('uMinDate').innerText = `${getMonthName(minDate)} (${minDate})`;
+                document.getElementById('uMaxDate').innerText = `${getMonthName(maxDate)} (${maxDate})`;
+                
                 document.getElementById('uSampleCode').innerText = sample.code;
-                document.getElementById('uSampleDate').innerText = sample.expiryDate;
+                document.getElementById('uSampleDate').innerText = `${getMonthName(sample.expiryDate)} (${sample.expiryDate})`;
+                
                 document.getElementById('janAlert').style.display = hasJanuary ? 'flex' : 'none';
                 document.getElementById('uploadModal').style.display = 'flex';
             } catch (e) {
@@ -1296,7 +1335,6 @@ const ONLINE_WORKER_URL = "https://online.meralmohamed121022.workers.dev";
                 app.notify("فشل قراءة الملف", "error");
             }
         },
-
                 confirmUpload: async () => {
             // إظهار شاشة التحميل (عشان ميضغطش مرتين بالغلط)
             const loader = document.getElementById('globalLoader');
